@@ -16,6 +16,8 @@ app.use(cors())
 
 const roles = ["player", "admin", "bot"]
 const types = ["player", "bot"]
+const equips = ["weapon", "armor", "accessory"]
+const stats = ["max_hp", "attack", "defense", "speed", "heal_rate"]
 
 // base route
 app.get('/', (req, res) => {
@@ -37,10 +39,10 @@ app.post('/users', (req, res) => {
   const password = body.password
   const role = body.role
   if(!roles.includes(role)) {
-    res.send("Invalid role")
+    return res.send("Invalid role")
   }
   if(!username || !password) {
-    res.send("username and password are required")
+    return res.send("username and password are required")
   }
   try {
     let qs = "INSERT into users (username, password, role) values ($1, $2, $3)"
@@ -75,7 +77,7 @@ app.put('/users/:user_id/gold', (req, res) => {
 app.get('/users/roles/:role', (req, res) => {
   const role = req.params.role
   if(!roles.includes(role)) {
-    res.send("Invalid role")
+    return res.send("Invalid role")
   }
   try {
     let qs = "SELECT * FROM users WHERE role = $1"
@@ -112,10 +114,10 @@ app.post('/users/:user_id/characters', (req, res) => {
   const name = body.character_name
   const type = body.character_type
   if(!types.includes(type)) {
-    res.send("Invalid type")
+    return res.send("Invalid type")
   }
   if(!name) {
-    res.send("character_name is required")
+    return res.send("character_name is required")
   }
   try {
     let qs = "INSERT into characters (user_id, character_name, character_type) values ($1, $2, $3)"
@@ -137,7 +139,7 @@ app.get('/characters', (req, res) => {
 app.get('/characters/types/:character_type', (req, res) => {
   const type = req.params.character_type
   if(!types.includes(type)) {
-    res.send("Invalid type")
+    return res.send("Invalid type")
   }
   try {
     let qs = "SELECT * FROM characters WHERE character_type = $1"
@@ -163,11 +165,48 @@ app.post('/potions', (req, res) => {
   const hraw = body.heal_raw
   const hper = body.heal_percent
   if(!name || !cost || !hraw || !hper) {
-    res.send("potion_name, cost, heal_raw, and heal_percent are required")
+    return res.send("potion_name, cost, heal_raw, and heal_percent are required")
   }
   try {
     let qs = "INSERT into potions (potion_name, cost, heal_raw, heal_percent) values ($1, $2, $3, $4)"
     query(qs, [name, cost, hraw, hper]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/equips', (req, res) => {
+  try {
+    let qs = "SELECT * FROM equips"
+    query(qs).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.post('/equips', (req, res) => {
+  const body = req.body
+  const name = body.equip_name
+  const etype = body.equip_type
+  const btype = body.boost_type
+  const amt = body.boost_amount
+  const cost = body.cost
+  if(!name || !etype || !btype || !amt || !cost) {
+    return res.send("equip_name, equip_type, boost_type, boost_amount, and cost are required")
+  }
+  if(btype.length != amt.length) {
+    return res.send("boost_type and boost_amount must be same length")
+  }
+  if(!equips.includes(etype)) {
+    return res.send("Invalid equipment type")
+  }
+  if(!btype.every(val => stats.includes(val)))
+  {
+    return res.send("One or more stats in boost_type is invalid")
+  }
+  try {
+    let qs = "INSERT into equips (equip_name, equip_type, boost_type, boost_amount, cost) values ($1, $2, $3, $4, $5)"
+    query(qs, [name, etype, btype, amt, cost]).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
   }
