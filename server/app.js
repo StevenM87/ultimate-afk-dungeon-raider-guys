@@ -164,8 +164,17 @@ app.post('/potions', (req, res) => {
   const cost = body.cost
   const hraw = body.heal_raw
   const hper = body.heal_percent
-  if(!name || !cost || !hraw || !hper) {
+  if(!name || cost == undefined || hraw == undefined || hper == undefined) {
     return res.send("potion_name, cost, heal_raw, and heal_percent are required")
+  }
+  if(cost < 1) {
+    return res.send("cost must be positive")
+  }
+  if(hraw < 1) {
+    return res.send("hraw must be positive")
+  }
+  if(hper > 1.0 || hper < 0.0) {
+    return res.send("hper must be between 0 and 1")
   }
   try {
     let qs = "INSERT into potions (potion_name, cost, heal_raw, heal_percent) values ($1, $2, $3, $4)"
@@ -191,8 +200,11 @@ app.post('/equips', (req, res) => {
   const btype = body.boost_type
   const amt = body.boost_amount
   const cost = body.cost
-  if(!name || !etype || !btype || !amt || !cost) {
+  if(!name || !etype || !btype || !amt || btype.length == 0 || amt.length == 0 || cost == undefined) {
     return res.send("equip_name, equip_type, boost_type, boost_amount, and cost are required")
+  }
+  if(cost < 1) {
+    return res.send("cost must be positive")
   }
   if(btype.length != amt.length) {
     return res.send("boost_type and boost_amount must be same length")
