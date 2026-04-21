@@ -17,6 +17,7 @@ app.use(cors())
 const roles = ["player", "admin", "bot"]
 const types = ["player", "bot"]
 const equips = ["weapon", "armor", "accessory"]
+const slots = ["weapon", "armor", "accessory_1", "accessory_2"]
 const stats = ["max_hp", "attack", "defense", "speed", "heal_rate"]
 
 // base route
@@ -108,7 +109,7 @@ app.get('/users/:user_id/characters/:character_id', (req, res) => {
   }
 })
 
-app.post('/users/:user_id/characters', (req, res) => {
+app.post('/users/:user_id/characters', async (req, res) => {
   const id = req.params.user_id
   const body = req.body
   const name = body.character_name
@@ -121,7 +122,14 @@ app.post('/users/:user_id/characters', (req, res) => {
   }
   try {
     let qs = "INSERT into characters (user_id, character_name, character_type) values ($1, $2, $3)"
-    query(qs, [id, name, type]).then(data => res.json(data.rows))  
+    query(qs, [id, name, type])
+    qs = "SELECT character_id FROM characters WHERE character_name = $1"
+    let cid = await query(qs, [name]).then(data => Number(data.rows[0].character_id))
+    slots.forEach(slot => {
+      qs = "INSERT into character_equips (character_id, equip_slot) values ($1, $2)"
+      query(qs, [cid, slot])
+    })
+    res.json([]) 
   } catch(err) {
     console.log(err)
   }
@@ -233,4 +241,3 @@ app.listen(app.get('port'), () => {
     console.log('App is running at http://localhost:%d in %s mode', app.get('port'), app.get('env'));
     console.log('  Press CTRL-C to stop\n');
   });
-  
