@@ -168,7 +168,7 @@ const buy = async (req, res) => {
       return res.send("User with this index does not exist")
     }
     gold = gold.rows[0].gold
-    if(gold < cost) {
+    if(Number(gold) < Number(cost)) {
       return res.send("User does not have enough gold to buy this")
     }
     try {
@@ -188,6 +188,60 @@ const buy = async (req, res) => {
 
 app.post('/users/:user_id/buy/:type/:item_id', buy)
 app.put('/users/:user_id/buy/:type/:item_id', buy)
+
+const equip = async (req, res) => {
+  const id = req.params.user_id
+  const cid = req.params.character_id
+  const iid = req.params.item_id
+  const slot = req.params.slot
+  if(!slots.includes(slot)) {
+    return res.send("Invalid equip slot")
+  }
+  try {
+    let qs = "SELECT equip_type FROM equips WHERE equip_id = $1"
+    let type = await query(qs, [iid])
+    if(type.rows.length === 0) {
+      return res.send("Equip with this index does not exist")
+    }
+    qs = "SELECT * FROM users WHERE user_id = $1"
+    let usr = await query(qs, [id])
+    if(usr.rows.length === 0) {
+      return res.send("User with this index does not exist")
+    }
+    type = type.rows[0].equip_type
+    if(!((type==="weapon" && slot==="weapon") || (type==="armor" && slot==="armor") || (type==="accessory" && (slot==="accessory_1" || slot==="accessory_2")) || type==="nothing")) {
+      return res.send("Equip with this index does not equip to this slot")
+    }
+    if(iid!=0) {
+      qs = "SELECT count FROM user_equips WHERE user_id = $1 AND equip_id = $2"
+      let count = await query(qs, [id, iid])
+      if(count.rows.length === 0 || count.rows[0].count == 0) {
+        return res.send("User with this index does not have any of specified item")
+      }
+    }
+    qs = "SELECT equip_id FROM character_equips WHERE character_id = $1 AND equip_slot = $2"
+    let old = await query(qs, [cid, slot])
+    if(old.rows.length === 0) {
+      return res.send("Character with this index does not exist")
+    }
+    old = old.rows[0].equip_id
+    if(old!=0) {
+      qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
+      await query(qs, [id, old])
+    }
+    if(iid!=0) {
+      qs = "UPDATE user_equips SET count = count - 1 WHERE user_id = $1 AND equip_id = $2"
+      await query(qs, [id, iid])
+    }
+    qs = "UPDATE character_equips SET equip_id = $3 WHERE character_id = $1 AND equip_slot = $2"
+    query(qs, [cid, slot, iid]).then(data => res.json(data.rows))
+  } catch(err) {
+    console.log(err)
+  }
+}
+
+app.post('/users/:user_id/characters/:character_id/equip/:slot/:item_id', equip)
+app.put('/users/:user_id/characters/:character_id/equip/:slot/:item_id', equip)
 
 app.post('/potions', (req, res) => {
   const body = req.body
