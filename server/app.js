@@ -17,6 +17,7 @@ app.use(cors())
 const roles = ["player", "admin", "bot"]
 const types = ["player", "bot"]
 const equips = ["weapon", "armor", "accessory"]
+const items = ["potion", "equip"]
 const slots = ["weapon", "armor", "accessory_1", "accessory_2"]
 const stats = ["max_hp", "attack", "defense", "speed", "heal_rate"]
 
@@ -75,6 +76,18 @@ app.put('/users/:user_id/gold', (req, res) => {
   }
 })
 
+app.put('/users/:user_id/earn', (req, res) => {
+  const id = req.params.user_id
+  const body = req.body
+  const gold = body.gold
+  try {
+    let qs = "UPDATE users SET gold = gold + $2 WHERE user_id = $1"
+    query(qs, [id, gold]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
 app.get('/users/roles/:role', (req, res) => {
   const role = req.params.role
   if(!roles.includes(role)) {
@@ -122,9 +135,9 @@ app.post('/users/:user_id/characters', async (req, res) => {
   }
   try {
     let qs = "INSERT into characters (user_id, character_name, character_type) values ($1, $2, $3)"
-    query(qs, [id, name, type])
+    await query(qs, [id, name, type])
     qs = "SELECT character_id FROM characters WHERE character_name = $1"
-    let cid = await query(qs, [name]).then(data => Number(data.rows[0].character_id))
+    let cid = await query(qs, [name]).then(data => data.rows[0].character_id)
     slots.forEach(slot => {
       qs = "INSERT into character_equips (character_id, equip_slot) values ($1, $2)"
       query(qs, [cid, slot])
@@ -135,36 +148,46 @@ app.post('/users/:user_id/characters', async (req, res) => {
   }
 })
 
-app.get('/characters', (req, res) => {
+const buy = async (req, res) => {
+  const id = req.params.user_id
+  const item = req.params.type
+  const iid = req.params.item_id
+  if(!items.includes(item)) {
+    return res.send("Invalid item type")
+  }
   try {
-    let qs = "SELECT * FROM characters"
-    query(qs).then(data => res.json(data.rows))  
+    let qs = `SELECT cost FROM ${item}s WHERE ${item}_id = $1`
+    let cost = await query(qs, [iid])
+    if(cost.rows.length === 0) {
+      return res.send("Item with this index does not exist")
+    }
+    cost = cost.rows[0].cost
+    qs = "SELECT gold FROM users WHERE user_id = $1"
+    let gold = await query(qs, [id])
+    if(gold.rows.length === 0) {
+      return res.send("User with this index does not exist")
+    }
+    gold = gold.rows[0].gold
+    if(gold < cost) {
+      return res.send("User does not have enough gold to buy this")
+    }
+    try {
+      qs = `INSERT into user_${item}s (user_id, ${item}_id) values ($1, $2)`
+      await query(qs, [id, iid])
+    } catch(err) {
+      console.log("user already has one or more of these, adding to entry")
+    }
+    qs = `UPDATE user_${item}s SET count = count + 1 WHERE user_id = $1 AND ${item}_id = $2`
+    await query(qs, [id, iid])
+    qs = "UPDATE users SET gold = $2 WHERE user_id = $1"
+    query(qs, [id, gold-cost]).then(data => res.json(data.rows))
   } catch(err) {
     console.log(err)
   }
-})
+}
 
-app.get('/characters/types/:character_type', (req, res) => {
-  const type = req.params.character_type
-  if(!types.includes(type)) {
-    return res.send("Invalid type")
-  }
-  try {
-    let qs = "SELECT * FROM characters WHERE character_type = $1"
-    query(qs, [type]).then(data => res.json(data.rows))  
-  } catch(err) {
-    console.log(err)
-  }
-})
-
-app.get('/potions', (req, res) => {
-  try {
-    let qs = "SELECT * FROM potions"
-    query(qs).then(data => res.json(data.rows))  
-  } catch(err) {
-    console.log(err)
-  }
-})
+app.post('/users/:user_id/buy/:type/:item_id', buy)
+app.put('/users/:user_id/buy/:type/:item_id', buy)
 
 app.post('/potions', (req, res) => {
   const body = req.body
