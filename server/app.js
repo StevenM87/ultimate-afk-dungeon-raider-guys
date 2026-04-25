@@ -231,13 +231,37 @@ const equip = async (req, res) => {
     if(old!=0) {
       qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
       await query(qs, [id, old])
+      qs = "SELECT boost_type, boost_amount FROM equips WHERE equip_id = $1"
+      let boosts = (await query(qs, [old])).rows[0]
+      let sets = "SET"
+      for(let i = 0; i < boosts.boost_type.length; i++) {
+        sets = `${sets} ${boosts.boost_type[i]} = ${boosts.boost_type[i]} - ${boosts.boost_amount[i]},`
+        if(boosts.boost_type[i] === "max_hp") {
+          sets = `${sets} current_hp = current_hp - ${boosts.boost_amount[i]},`
+        }
+      }
+      sets = sets.slice(0, -1)
+      qs = `UPDATE characters ${sets} WHERE character_id = $1`
+      await query(qs, [cid])
     }
     if(iid!=0) {
       qs = "UPDATE user_equips SET count = count - 1 WHERE user_id = $1 AND equip_id = $2"
       await query(qs, [id, iid])
+      qs = "SELECT boost_type, boost_amount FROM equips WHERE equip_id = $1"
+      let boosts = (await query(qs, [iid])).rows[0]
+      let sets = "SET"
+      for(let i = 0; i < boosts.boost_type.length; i++) {
+        sets = `${sets} ${boosts.boost_type[i]} = ${boosts.boost_type[i]} + ${boosts.boost_amount[i]},`
+        if(boosts.boost_type[i] === "max_hp") {
+          sets = `${sets} current_hp = current_hp + ${boosts.boost_amount[i]},`
+        }
+      }
+      sets = sets.slice(0, -1)
+      qs = `UPDATE characters ${sets} WHERE character_id = $1`
+      await query(qs, [cid])
     }
     qs = "UPDATE character_equips SET equip_id = $3 WHERE character_id = $1 AND equip_slot = $2"
-    query(qs, [cid, slot, iid]).then(data => res.json(data.rows))
+    await query(qs, [cid, slot, iid]).then(data => res.json(data.rows))
   } catch(err) {
     console.log(err)
   }
@@ -316,8 +340,119 @@ app.get('/up', (req, res) => {
   res.json({status: 'up'})
 })
 
-
 app.listen(app.get('port'), () => {
     console.log('App is running at http://localhost:%d in %s mode', app.get('port'), app.get('env'));
     console.log('  Press CTRL-C to stop\n');
-  });
+});
+
+let updating = false
+
+async function numBattles() {
+  let qs = "SELECT * FROM last_update"
+  let data = (await query(qs)).rows[0]
+  data.time = new Date(data.time)
+  let now = new Date()
+  let rounds = Math.floor((now-data.time)/(1000*60*30))
+  data.newRounds = rounds > 0 ? rounds : 0
+  return rounds
+}
+
+let simData = await numBattles()
+
+async function checkForBattles() {
+  if(!updating) {
+    if(simData.newRounds <= 0) {
+      setTimeout(numBattles, now-simData.time).then(data => simData = data)
+    } else {
+      updating = true
+      for(let i = 0; i < simData.rounds; i++) {
+        await runRound()
+      }
+      updating = false
+    }
+  }
+}
+
+async function runRound() {
+  let qs = "SELECT * FROM characters WHERE current_hp / max_hp < 0.5"
+  let resting = (await query(qs)).rows
+  qs = "SELECT * FROM characters WHERE current_hp / max_hp >= 0.5"
+  let ready = (await query(qs)).rows
+  qs = "SELECT * FROM character_equips"
+  let equips = (await query(qs)).rows
+  if(ready.length % 2 == 1) {
+    const bots = ready.filter(char => char.character_type === "bot")
+    if(bots.length > 0) {
+      const leaveOut = bots[Math.floor(Math.random()*bots.length)]
+      let ready = ready.filter(char => char.character_id !== leaveOut.character_id)
+      resting.push(leaveOut)
+    }
+  }
+  if(ready.length > 1) {
+    ready.sort((a, b) => a.level - b.level)
+    const range = Math.floor(ready.length / 10) + 3
+    let charMap = new Array(ready.length).fill(false)
+    let left = true
+    let leftInd = 0
+    let rightInd = ready.length-1
+    for(let i = 0; i < ready.length/2; i++) {
+      if(left) {
+        while(charMap[leftInd]) {
+          leftInd++
+        }
+        let cands = []
+        for(let j = leftInd+1; j < leftInd+range+1; j++) {
+          if(!charMap[j]) {
+            cands.push(j)
+          }
+        }
+        let opp = 0
+        if(cands.length == 0) {
+          opp = leftInd+range+1
+          while(charMap[opp]) {
+            opp++
+          }
+        } else {
+          opp = cands[Math.floor(Math.random()*cands.length)]
+        }
+        charMap[leftInd] = true
+        charMap[opp] = true
+        battle(ready[leftInd], ready[opp])
+      } else {
+        while(charMap[rightInd]) {
+          rightInd--
+        }
+        let cands = []
+        for(let j = rightInd-1; j > rightInd-range-1; j--) {
+          if(!charMap[j]) {
+            cands.push(j)
+          }
+        }
+        let opp = 0
+        if(cands.length == 0) {
+          opp = rightInd-range-1
+          while(charMap[opp]) {
+            opp--
+          }
+        } else {
+          opp = cands[Math.floor(Math.random()*cands.length)]
+        }
+        charMap[rightInd] = true
+        charMap[opp] = true
+        battle(ready[opp], ready[rightInd])
+      }
+      left = !left
+    }
+  }
+
+
+  for(let i = 0; i < resting.length; i++) {
+    const newHP = Number(resting[i].current_hp) + Number(resting[i].heal_rate)
+    const maxHP = Number(resting[i].max_hp)
+    resting[i].current_hp = newHP < maxHP ? newHP : maxHP
+  }
+}
+
+async function battle(c1, c2) {
+
+}
