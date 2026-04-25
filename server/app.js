@@ -225,6 +225,9 @@ const equip = async (req, res) => {
       return res.send("Character with this index does not exist")
     }
     old = old.rows[0].equip_id
+    if(old==iid) {
+      return res.send("Character already has an item of this type equipped in this slot")
+    }
     if(old!=0) {
       qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
       await query(qs, [id, old])
