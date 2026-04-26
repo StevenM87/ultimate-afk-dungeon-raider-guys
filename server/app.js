@@ -349,7 +349,7 @@ app.post('/potions', (req, res) => {
 
 app.get('/equips', (req, res) => {
   try {
-    let qs = "SELECT * FROM equips"
+    let qs = "SELECT * FROM equips WHERE equip_id != 0"
     query(qs).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
@@ -625,4 +625,4 @@ async function battle(c1, c2, round) {
   console.log(c2)
 }
 
-setInterval(checkForBattles, 1000*10)
+setInterval(checkForBattles, 1000*60)
