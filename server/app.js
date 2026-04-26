@@ -347,44 +347,49 @@ app.listen(app.get('port'), () => {
 
 let updating = false
 
+let simData = {}
 async function numBattles() {
   let qs = "SELECT * FROM last_update"
-  let data = (await query(qs)).rows[0]
-  data.time = new Date(data.time)
+  simData = (await query(qs)).rows[0]
+  simData.time = new Date(simData.time)
+  console.log(simData.time)
   let now = new Date()
-  let rounds = Math.floor((now-data.time)/(1000*60*30))
-  data.newRounds = rounds > 0 ? rounds : 0
-  return rounds
+  let rounds = Math.floor((now-simData.time)/(1000*60*30))
+  simData.newRounds = rounds > 0 ? rounds : 0
+  console.log(simData.newRounds)
+  simData.next_round = Number(simData.next_round)
 }
-
-let simData = await numBattles()
 
 async function checkForBattles() {
   if(!updating) {
-    if(simData.newRounds <= 0) {
-      setTimeout(numBattles, now-simData.time).then(data => simData = data)
-    } else {
+    await numBattles()
+    console.log(simData.newRounds)
+    if(simData.newRounds > 0) {
       updating = true
-      for(let i = 0; i < simData.rounds; i++) {
-        await runRound()
+      for(let i = 0; i < simData.newRounds; i++) {
+        await runRound(simData.next_round)
+        simData.next_round++
       }
+      simData.time = new Date(simData.time.getTime() + (simData.newRounds)*(1000*60*30))
+      console.log(simData.time)
+      let qs = "UPDATE last_update SET time = $1, next_round = $2"
+      query(qs, [simData.time, simData.next_round])
+      simData.newRounds = 0
       updating = false
     }
   }
 }
 
-async function runRound() {
+async function runRound(round) {
   let qs = "SELECT * FROM characters WHERE current_hp / max_hp < 0.5"
   let resting = (await query(qs)).rows
   qs = "SELECT * FROM characters WHERE current_hp / max_hp >= 0.5"
   let ready = (await query(qs)).rows
-  qs = "SELECT * FROM character_equips"
-  let equips = (await query(qs)).rows
   if(ready.length % 2 == 1) {
     const bots = ready.filter(char => char.character_type === "bot")
     if(bots.length > 0) {
       const leaveOut = bots[Math.floor(Math.random()*bots.length)]
-      let ready = ready.filter(char => char.character_id !== leaveOut.character_id)
+      ready = ready.filter(char => char.character_id !== leaveOut.character_id)
       resting.push(leaveOut)
     }
   }
@@ -402,7 +407,7 @@ async function runRound() {
         }
         let cands = []
         for(let j = leftInd+1; j < leftInd+range+1; j++) {
-          if(!charMap[j]) {
+          if(!charMap[j] && j < charMap.length) {
             cands.push(j)
           }
         }
@@ -417,14 +422,14 @@ async function runRound() {
         }
         charMap[leftInd] = true
         charMap[opp] = true
-        battle(ready[leftInd], ready[opp])
+        battle(ready[leftInd], ready[opp], round)
       } else {
         while(charMap[rightInd]) {
           rightInd--
         }
         let cands = []
         for(let j = rightInd-1; j > rightInd-range-1; j--) {
-          if(!charMap[j]) {
+          if(!charMap[j] && j > -1) {
             cands.push(j)
           }
         }
@@ -439,20 +444,134 @@ async function runRound() {
         }
         charMap[rightInd] = true
         charMap[opp] = true
-        battle(ready[opp], ready[rightInd])
+        battle(ready[opp], ready[rightInd], round)
       }
       left = !left
     }
   }
-
-
   for(let i = 0; i < resting.length; i++) {
     const newHP = Number(resting[i].current_hp) + Number(resting[i].heal_rate)
     const maxHP = Number(resting[i].max_hp)
     resting[i].current_hp = newHP < maxHP ? newHP : maxHP
+    let qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
+    query(qs, [resting[i].character_id, resting[i].current_hp])
   }
 }
 
-async function battle(c1, c2) {
-
+function shuffle(list)
+{
+    for(let i = 0; i < list.length; i++)
+    {
+        let index = Math.floor(Math.random()*(list.length-i))+i
+        let temp = list[i]
+        list[i] = list[index]
+        list[index] = temp
+    }
+    return list
 }
+
+async function battle(c1, c2, round) {
+  c1.attack = Number(c1.attack)
+  c2.attack = Number(c2.attack)
+  c1.defense = Number(c1.defense)
+  c2.defense = Number(c2.defense)
+  c1.current_hp = Number(c1.current_hp)
+  c2.current_hp = Number(c2.current_hp)
+  c1.max_hp = Number(c1.max_hp)
+  c2.max_hp = Number(c2.max_hp)
+  c1.heal_rate = Number(c1.heal_rate)
+  c2.heal_rate = Number(c2.heal_rate)
+  c1.speed = Number(c1.speed)
+  c2.speed = Number(c2.speed)
+  c1.level = Number(c1.level)
+  c2.level = Number(c2.level)
+  c1.exp = Number(c1.exp)
+  c2.exp = Number(c2.exp)
+  c1.exp_for_next_level = Number(c1.exp_for_next_level)
+  c2.exp_for_next_level = Number(c2.exp_for_next_level)
+  let e1 = 0
+  let e2 = 0
+  let p1 = c1.speed / c2.speed > 1 ? 1 : c1.speed / c2.speed
+  let p2 = c2.speed / c1.speed > 1 ? 1 : c2.speed / c1.speed
+  let rRange = 2*(Math.sqrt(1.25)-1)
+  while(c1.current_hp > 0 && c2.current_hp > 0) {
+    let t1 = (1-e1)/p1
+    let t2 = (1-e2)/p2
+    let c1Attacking = t1 < t2
+    if(t1 == t2) {
+      c1Attacking = Math.random() < 0.5
+    }
+    if(c1Attacking) {
+      e1 = 0
+      e2 += t1*p2
+    } else {
+      e2 = 0
+      e1 += t2*p1
+    }
+    let roll1 = Math.random()*rRange + 2 - Math.sqrt(1.25)
+    let roll2 = Math.random()*rRange + 2 - Math.sqrt(1.25)
+    if(c1Attacking) {
+      let damage = Math.round((c1.attack-c2.defense/2)*roll1*roll2)
+      damage = damage > 1 ? damage : 1
+      console.log(`${c1.character_name} deals ${damage} damage`)
+      c2.current_hp -= damage
+    } else {
+      let damage = Math.round((c2.attack-c1.defense/2)*roll1*roll2)
+      damage = damage > 1 ? damage : 1
+      console.log(`${c2.character_name} deals ${damage} damage`)
+      c1.current_hp -= damage
+    }
+  }
+  if(c1.current_hp < 0) c1.current_hp = 0
+  if(c2.current_hp < 0) c2.current_hp = 0
+  const c1Win = c1.current_hp > 0
+  c1.exp += Math.floor((c1Win ? 4 : 2)*((c2.level + 1) ** 1.5))
+  c2.exp += Math.floor((c1Win ? 2 : 4)*((c1.level + 1) ** 1.5))
+  if(c1.exp >= c1.exp_for_next_level) {
+    while(c1.exp >= c1.exp_for_next_level) {
+      c1.exp -= c1.exp_for_next_level
+      c1.exp_for_next_level = Math.floor(c1.exp_for_next_level*1.6)
+      c1.level++
+      let ups = [...stats]
+      ups.push("max_hp")
+      for(let i = 0; i < 6; i++) {
+        let boost = Math.floor(Math.random()*(c1.level+1))
+        console.log(`${ups[i]}: ${boost}`)
+        c1[ups[i]] += boost
+      }
+    }
+    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = $5, current_hp = $6, attack = $7, defense = $8, speed = $9, heal_rate = $10 WHERE character_id = $1"
+    query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, c1.max_hp, c1.current_hp, c1.attack, c1.defense, c1.speed, c2.heal_rate])
+  } else {
+    let qs = "UPDATE characters SET current_hp = $2, exp = $3 WHERE character_id = $1"
+    query(qs, [c1.character_id, c1.current_hp, c1.exp])
+  }
+  if(c2.exp >= c2.exp_for_next_level) {
+    while(c2.exp >= c2.exp_for_next_level) {
+      c2.exp -= c2.exp_for_next_level
+      c2.exp_for_next_level = Math.floor(c2.exp_for_next_level*1.6)
+      c2.level++
+      let ups = [...stats]
+      ups.push("max_hp")
+      ups.push("max_hp")
+      for(let i = 0; i < 6; i++) {
+        let boost = Math.floor(Math.random()*(c2.level+1))
+        console.log(`${ups[i]}: ${boost}`)
+        c2[ups[i]] += boost
+      }
+    }
+    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = $5, current_hp = $6, attack = $7, defense = $8, speed = $9, heal_rate = $10 WHERE character_id = $1"
+    query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, c2.max_hp, c2.current_hp, c2.attack, c2.defense, c2.speed, c2.heal_rate])
+  } else {
+    let qs = "UPDATE characters SET current_hp = $2, exp = $3 WHERE character_id = $1"
+    query(qs, [c2.character_id, c2.current_hp, c2.exp])
+  }
+  let qs = "INSERT into battles (winner_id, loser_id, round) values ($1, $2, $3)"
+  query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
+  qs = "UPDATE users SET gold = gold + $2 WHERE user_id = $1"
+  query(qs, [c1Win ? c1.user_id : c2.user_id, 3*((c1Win ? c2.level : c1.level)+1)])
+  console.log(c1)
+  console.log(c2)
+}
+
+setInterval(checkForBattles, 1000*10)
