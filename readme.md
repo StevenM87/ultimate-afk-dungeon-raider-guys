@@ -48,3 +48,36 @@ Then store your Database credentials in your .env file.
 * **Presentation & Demo** -- **10 points** -- Engaging, clear explanation, and live demo
 
 **If code doesn't run/compile you can get no more than a 60. But please write comments and a README to explain what you were trying to do.**
+
+### Admin Portal Frontend
+
+The project now includes a standalone admin frontend built with React.
+
+#### Run Instructions
+
+1. Start the server from `server/`:
+   - `npm install`
+   - `npm run dev`
+2. Start the client from `client/`:
+   - `npm install`
+   - `npm run dev`
+3. Open the admin portal at:
+   - `http://localhost:5173/admin.html`
+
+#### Admin Login
+
+- Login validates against existing backend users data.
+- Only accounts with `role = admin` are allowed.
+- Session is stored in browser `sessionStorage` and cleared on logout.
+
+#### Currently Supported Admin Actions
+
+- View users (moderation list UI).
+- View bots list.
+- Create potions via `POST /potions`.
+- Create equips via `POST /equips`.
+- View current equips list.
+
+#### Current Backend Limitations
+
+- Ban/delete users and bot create/delete actions are displayed in the UI as pending actions because dedicated moderation endpoints are not currently present in the backend.

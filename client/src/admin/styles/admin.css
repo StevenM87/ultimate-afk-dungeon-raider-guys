@@ -1,0 +1,143 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+    sans-serif;
+  line-height: 1.4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #111827;
+  color: #f3f4f6;
+}
+
+.admin-app-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.admin-card {
+  width: min(1100px, 100%);
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+.admin-login-card {
+  max-width: 420px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.admin-nav {
+  margin: 1rem 0;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-nav button {
+  background: #111827;
+}
+
+.admin-nav .active {
+  background: #2563eb;
+}
+
+.admin-subtle-text {
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.admin-actions,
+.admin-inline-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+input,
+select,
+button {
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #4b5563;
+  background: #111827;
+  color: #f3f4f6;
+}
+
+button {
+  cursor: pointer;
+  background: #2563eb;
+  border: 0;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-danger-button {
+  background: #b91c1c;
+}
+
+.admin-error {
+  color: #fecaca;
+  background: #7f1d1d;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.admin-success {
+  color: #bbf7d0;
+  background: #14532d;
+  border: 1px solid #22c55e;
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+.admin-grid-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-panel-row {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-two-column {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.admin-span-full {
+  grid-column: 1 / -1;
+}
