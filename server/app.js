@@ -47,8 +47,8 @@ app.post('/users', (req, res) => {
     return res.send("username and password are required")
   }
   try {
-    let qs = "INSERT into users (username, password, role) values ($1, $2, $3)"
-    query(qs, [username, password, role]).then(data => res.json(data.rows))  
+    let qs = "INSERT into users (username, password, role, status) values ($1, $2, $3, $4)"
+    query(qs, [username, password, role, 'active']).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
   }
@@ -61,6 +61,57 @@ app.get('/users/:user_id', (req, res) => {
     query(qs, [id]).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
+  }
+})
+
+app.put('/users/:user_id/ban', async (req, res) => {
+  const id = Number(req.params.user_id)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ message: 'Invalid user id' })
+  }
+
+  try {
+    const currentUser = await query("SELECT user_id, role, status FROM users WHERE user_id = $1", [id])
+    if (currentUser.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+    if (currentUser.rows[0].role === 'admin') {
+      return res.status(403).json({ message: 'Admin users cannot be banned' })
+    }
+    if (currentUser.rows[0].status === 'banned') {
+      return res.status(400).json({ message: 'User is already banned' })
+    }
+
+    const qs = "UPDATE users SET status = 'banned' WHERE user_id = $1 RETURNING *"
+    const result = await query(qs, [id])
+    return res.json(result.rows[0])
+  } catch(err) {
+    console.log(err)
+    return res.status(500).json({ message: 'Failed to ban user' })
+  }
+})
+
+app.delete('/users/:user_id', async (req, res) => {
+  const id = Number(req.params.user_id)
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ message: 'Invalid user id' })
+  }
+
+  try {
+    const currentUser = await query("SELECT user_id, role FROM users WHERE user_id = $1", [id])
+    if (currentUser.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+    if (currentUser.rows[0].role === 'admin') {
+      return res.status(403).json({ message: 'Admin users cannot be deleted' })
+    }
+
+    const qs = "DELETE FROM users WHERE user_id = $1 RETURNING user_id"
+    const result = await query(qs, [id])
+    return res.json({ deleted_user_id: result.rows[0].user_id })
+  } catch(err) {
+    console.log(err)
+    return res.status(500).json({ message: 'Failed to delete user' })
   }
 })
 
