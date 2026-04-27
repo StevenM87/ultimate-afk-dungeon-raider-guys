@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
 
 app.get('/users', (req, res) => {
   try {
-    let qs = "SELECT * FROM users"
+    let qs = "SELECT * FROM users ORDER BY user_id"
     query(qs).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
@@ -47,8 +47,8 @@ app.post('/users', (req, res) => {
     return res.send("username and password are required")
   }
   try {
-    let qs = "INSERT into users (username, password, role, status) values ($1, $2, $3, $4)"
-    query(qs, [username, password, role, 'active']).then(data => res.json(data.rows))  
+    let qs = "INSERT into users (username, password, role) values ($1, $2, $3)"
+    query(qs, [username, password, role]).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
   }
@@ -63,6 +63,98 @@ app.get('/users/:user_id', (req, res) => {
     console.log(err)
   }
 })
+
+app.delete('/users/:user_id', (req, res) => {
+  const id = req.params.user_id
+  try {
+    let qs = "DELETE FROM users WHERE user_id = $1"
+    query(qs, [id]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters', (req, res) => {
+  try {
+    let qs = "SELECT * FROM characters ORDER BY character_id"
+    query(qs).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters/records', async (req, res) => {
+  try {
+    let qs = "SELECT winner_id, COUNT(*) as wins FROM battles GROUP BY winner_id ORDER BY winner_id"
+    const wins = (await query(qs)).rows
+    if(wins.length === 0) {
+      return res.send("No battles logged yet")
+    }
+    qs = "SELECT loser_id, COUNT(*) as losses FROM battles GROUP BY loser_id ORDER BY loser_id"
+    const losses = (await query(qs)).rows
+    qs = "SELECT character_id from characters ORDER BY character_id"
+    const characters = (await query(qs)).rows
+    let out = characters.map(char => {return {character_id: char.character_id, wins: "0", losses: "0"}})
+    let wi = 0
+    let li = 0
+    for(let i = 0; i < out.length; i++) {
+      if(out[i].character_id==wins[wi].winner_id) {
+        out[i].wins = wins[wi].wins
+        wi++
+      }
+      if(out[i].character_id==losses[li].loser_id) {
+        out[i].losses = losses[li].losses
+        li++
+      }
+    }
+    res.json(out)
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters/records/:character_id', async (req, res) => {
+  const cid = req.params.character_id
+  try {
+    let qs = "SELECT COUNT(*) as wins FROM battles WHERE winner_id = $1"
+    const wins = (await query(qs, [cid])).rows[0].wins
+    qs = "SELECT COUNT(*) as losses FROM battles WHERE loser_id = $1"
+    const losses = (await query(qs, [cid])).rows[0].losses
+    res.json([{character_id: cid, wins: wins, losses: losses}])
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters/battles', (req, res) => {
+  try {
+    let qs = "SELECT * FROM battles ORDER BY round, winner_id"
+    query(qs).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters/battles/:character_id', (req, res) => {
+  const cid = req.params.character_id
+  try {
+    let qs = "SELECT * FROM battles WHERE winner_id = $1 OR loser_id = $1 ORDER BY round"
+    query(qs, [cid]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/characters/:character_id', (req, res) => {
+  const cid = req.params.character_id
+  try {
+    let qs = "SELECT * FROM characters WHERE character_id = $1"
+    query(qs, [cid]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
 
 app.put('/users/:user_id/ban', async (req, res) => {
   const id = Number(req.params.user_id)
@@ -173,6 +265,31 @@ app.get('/users/:user_id/characters/:character_id', (req, res) => {
   }
 })
 
+app.delete('/users/:user_id/characters/:character_id', async (req, res) => {
+  const id = req.params.user_id
+  const cid = req.params.character_id
+  try {
+    let qs = "SELECT equip_id FROM character_equips WHERE character_id = $1"
+    let items = (await query(qs, [cid])).rows
+    for(let item of items) {
+      if(item.equip_id!=0) {
+        try {
+          qs = "INSERT into user_equips (user_id, equip_id) values ($1, $2)"
+          await query(qs, [id, item.equip_id])
+        } catch(err) {
+          console.log("user already has one or more of these, adding to entry")
+        }
+        qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
+        await query(qs, [id, item.equip_id])
+      }
+    }
+    qs = "DELETE FROM characters WHERE character_id = $1"
+    query(qs, [cid]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
 app.post('/users/:user_id/characters', async (req, res) => {
   const id = req.params.user_id
   const body = req.body
@@ -267,7 +384,7 @@ const equip = async (req, res) => {
       qs = "SELECT count FROM user_equips WHERE user_id = $1 AND equip_id = $2"
       let count = await query(qs, [id, iid])
       if(count.rows.length === 0 || count.rows[0].count == 0) {
-        return res.send("User with this index does not have any of specified item")
+        return res.send("User with this index does not have any of specified equip")
       }
     }
     qs = "SELECT equip_id FROM character_equips WHERE character_id = $1 AND equip_slot = $2"
@@ -321,6 +438,52 @@ const equip = async (req, res) => {
 app.post('/users/:user_id/characters/:character_id/equip/:slot/:item_id', equip)
 app.put('/users/:user_id/characters/:character_id/equip/:slot/:item_id', equip)
 
+const potion = async (req, res) => {
+  const id = req.params.user_id
+  const cid = req.params.character_id
+  const iid = req.params.item_id
+  try {
+    let qs = "SELECT heal_raw, heal_percent FROM potions WHERE potion_id = $1"
+    let potion = await query(qs, [iid])
+    if(potion.rows.length === 0) {
+      return res.send("Potion with this index does not exist")
+    }
+    const heal_raw = Number(potion.rows[0].heal_raw)
+    const heal_percent = Number(potion.rows[0].heal_percent)
+    qs = "SELECT * FROM users WHERE user_id = $1"
+    let usr = await query(qs, [id])
+    if(usr.rows.length === 0) {
+      return res.send("User with this index does not exist")
+    }
+    qs = "SELECT count FROM user_potions WHERE user_id = $1 AND potion_id = $2"
+    let count = await query(qs, [id, iid])
+    if(count.rows.length === 0 || count.rows[0].count == 0) {
+      return res.send("User with this index does not have any of specified item")
+    }
+    qs = "SELECT max_hp, current_hp FROM characters WHERE character_id = $1"
+    let hp = await query(qs, [cid])
+    if(hp.rows.length === 0) {
+      return res.send("Character with this index does not exist")
+    }
+    const max = Number(hp.rows[0].max_hp)
+    let current = Number(hp.rows[0].current_hp)
+    if(current == max) {
+      return res.send("Character is already at full hp")
+    }
+    current += heal_raw
+    current += Math.round(max*heal_percent*(0.8+Math.random()*0.4))
+    qs = "UPDATE user_potions SET count = count - 1 WHERE user_id = $1 AND potion_id = $2"
+    await query(qs, [id, iid])
+    qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
+    await query(qs, [cid, current < max ? current : max]).then(data => res.json(data.rows))
+  } catch(err) {
+    console.log(err)
+  }
+}
+
+app.post('/users/:user_id/characters/:character_id/potion/:item_id', potion)
+app.put('/users/:user_id/characters/:character_id/potion/:item_id', potion)
+
 app.post('/potions', (req, res) => {
   const body = req.body
   const name = body.potion_name
@@ -351,6 +514,35 @@ app.get('/equips', (req, res) => {
   try {
     let qs = "SELECT * FROM equips WHERE equip_id != 0"
     query(qs).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.delete('/equips/:equip_id', (req, res) => {
+  const iid = req.params.equip_id
+  try {
+    let qs = "DELETE FROM equips WHERE equip_id = $1"
+    query(qs, [iid]).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.get('/potions', (req, res) => {
+  try {
+    let qs = "SELECT * FROM potions"
+    query(qs).then(data => res.json(data.rows))  
+  } catch(err) {
+    console.log(err)
+  }
+})
+
+app.delete('/potions/:potion_id', (req, res) => {
+  const iid = req.params.potion_id
+  try {
+    let qs = "DELETE FROM potions WHERE potion_id = $1"
+    query(qs, [iid]).then(data => res.json(data.rows))  
   } catch(err) {
     console.log(err)
   }
