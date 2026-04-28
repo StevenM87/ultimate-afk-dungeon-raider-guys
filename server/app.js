@@ -56,7 +56,6 @@ async function numBattles() {
 async function checkForBattles() {
   if(!updating) {
     await numBattles()
-    console.log(simData.newRounds)
     if(simData.newRounds > 0) {
       updating = true
       for(let i = 0; i < simData.newRounds; i++) {
@@ -187,6 +186,8 @@ async function battle(c1, c2, round) {
   let p1 = c1.speed / c2.speed > 1 ? 1 : c1.speed / c2.speed
   let p2 = c2.speed / c1.speed > 1 ? 1 : c2.speed / c1.speed
   let rRange = 2*(Math.sqrt(1.25)-1)
+  let d1 = 0
+  let d2 = 0
   while(c1.current_hp > 0 && c2.current_hp > 0) {
     let t1 = (1-e1)/p1
     let t2 = (1-e2)/p2
@@ -208,19 +209,30 @@ async function battle(c1, c2, round) {
       damage = damage > 1 ? damage : 1
       console.log(`${c1.character_name} deals ${damage} damage`)
       c2.current_hp -= damage
+      d2 += damage
     } else {
       let damage = Math.round((c2.attack-c1.defense/2)*roll1*roll2)
       damage = damage > 1 ? damage : 1
       console.log(`${c2.character_name} deals ${damage} damage`)
       c1.current_hp -= damage
+      d1 += damage
     }
   }
-  if(c1.current_hp < 0) c1.current_hp = 0
-  if(c2.current_hp < 0) c2.current_hp = 0
+  if(c1.current_hp < 0) {
+    d1 += c1.current_hp
+    c1.current_hp = 0
+  }
+  if(c2.current_hp < 0) {
+    d2 += c2.current_hp
+    c2.current_hp = 0
+  }
+  console.log(d1)
+  console.log(d2)
   const c1Win = c1.current_hp > 0
   c1.exp += Math.floor((c1Win ? 4 : 2)*((c2.level + 1) ** 1.5))
   c2.exp += Math.floor((c1Win ? 2 : 4)*((c1.level + 1) ** 1.5))
   if(c1.exp >= c1.exp_for_next_level) {
+    let boosts = [0, 0, 0, 0, 0, 0]
     while(c1.exp >= c1.exp_for_next_level) {
       c1.exp -= c1.exp_for_next_level
       c1.exp_for_next_level = Math.floor(c1.exp_for_next_level*1.6)
@@ -230,19 +242,18 @@ async function battle(c1, c2, round) {
       for(let i = 0; i < 6; i++) {
         let boost = Math.floor(Math.random()*(c1.level+1))
         console.log(`${ups[i]}: ${boost}`)
-        if(i!=5) {
-          c1[ups[i]] = 0
-        }
         c1[ups[i]] += boost
+        boosts[i] = boost
       }
     }
-    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, c1.max_hp, c1.current_hp, c1.attack, c1.defense, c1.speed, c2.heal_rate])
+    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
+    query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, boosts[0]+boosts[5], d1, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
-    let qs = "UPDATE characters SET current_hp = $2, exp = $3 WHERE character_id = $1"
-    query(qs, [c1.character_id, c1.current_hp, c1.exp])
+    let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
+    query(qs, [c1.character_id, d1, c1.exp])
   }
   if(c2.exp >= c2.exp_for_next_level) {
+    let boosts = [0, 0, 0, 0, 0, 0]
     while(c2.exp >= c2.exp_for_next_level) {
       c2.exp -= c2.exp_for_next_level
       c2.exp_for_next_level = Math.floor(c2.exp_for_next_level*1.6)
@@ -252,17 +263,15 @@ async function battle(c1, c2, round) {
       for(let i = 0; i < 6; i++) {
         let boost = Math.floor(Math.random()*(c2.level+1))
         console.log(`${ups[i]}: ${boost}`)
-        if(i!=5) {
-          c2[ups[i]] = 0
-        }
         c2[ups[i]] += boost
+        boosts[i] = boost
       }
     }
-    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, c2.max_hp, c2.current_hp, c2.attack, c2.defense, c2.speed, c2.heal_rate])
+    let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
+    query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, boosts[0]+boosts[5], d2, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
-    let qs = "UPDATE characters SET current_hp = $2, exp = $3 WHERE character_id = $1"
-    query(qs, [c2.character_id, c2.current_hp, c2.exp])
+    let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
+    query(qs, [c2.character_id, d2, c2.exp])
   }
   let qs = "INSERT into battles (winner_id, loser_id, round) values ($1, $2, $3)"
   query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
