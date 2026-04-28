@@ -29,14 +29,14 @@ app.get('/up', (req, res) => {
   res.json({status: 'up'})
 })
 
+characterRoutes(app)
+userRoutes(app)
+itemRoutes(app)
+
 app.listen(app.get('port'), () => {
     console.log('App is running at http://localhost:%d in %s mode', app.get('port'), app.get('env'));
     console.log('  Press CTRL-C to stop\n');
 });
-
-characterRoutes(app)
-userRoutes(app)
-itemRoutes(app)
 
 let updating = false
 
@@ -79,11 +79,9 @@ async function runRound(round) {
   let ready = (await query(qs)).rows
   if(ready.length % 2 == 1) {
     const bots = ready.filter(char => char.character_type === "bot")
-    if(bots.length > 0) {
-      const leaveOut = bots[Math.floor(Math.random()*bots.length)]
-      ready = ready.filter(char => char.character_id !== leaveOut.character_id)
-      resting.push(leaveOut)
-    }
+    const leaveOut = bots.length > 0 ? bots[Math.floor(Math.random()*bots.length)] : ready[Math.floor(Math.random()*ready.length)]
+    ready = ready.filter(char => char.character_id !== leaveOut.character_id)
+    resting.push(leaveOut)
   }
   if(ready.length > 1) {
     ready.sort((a, b) => a.level - b.level)
@@ -148,18 +146,6 @@ async function runRound(round) {
     let qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
     query(qs, [resting[i].character_id, resting[i].current_hp])
   }
-}
-
-function shuffle(list)
-{
-    for(let i = 0; i < list.length; i++)
-    {
-        let index = Math.floor(Math.random()*(list.length-i))+i
-        let temp = list[i]
-        list[i] = list[index]
-        list[index] = temp
-    }
-    return list
 }
 
 async function battle(c1, c2, round) {
