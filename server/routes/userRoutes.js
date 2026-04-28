@@ -358,6 +358,26 @@ const userRoutes = (app) => {
       console.log(err)
     }
   })
+
+  app.get('/users/:user_id/equips', (req, res) => {
+    const id = req.params.user_id
+    try {
+      let qs = "SELECT * FROM user_equips WHERE user_id = $1 AND count > 0"
+      query(qs, [id]).then(data => res.json(data.rows))  
+    } catch(err) {
+      console.log(err)
+    }
+  })
+
+  app.get('/users/:user_id/potions', (req, res) => {
+    const id = req.params.user_id
+    try {
+      let qs = "SELECT * FROM user_potions WHERE user_id = $1 AND count > 0"
+      query(qs, [id]).then(data => res.json(data.rows))  
+    } catch(err) {
+      console.log(err)
+    }
+  })
   
   app.put('/users/:user_id/gold', (req, res) => {
     const id = req.params.user_id
