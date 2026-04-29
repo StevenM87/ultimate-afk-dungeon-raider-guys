@@ -77,6 +77,7 @@ async function runRound(round) {
   let resting = (await query(qs)).rows
   qs = "SELECT * FROM characters WHERE current_hp / max_hp >= 0.5"
   let ready = (await query(qs)).rows
+  let calls = []
   if(ready.length % 2 == 1) {
     const bots = ready.filter(char => char.character_type === "bot")
     const leaveOut = bots.length > 0 ? bots[Math.floor(Math.random()*bots.length)] : ready[Math.floor(Math.random()*ready.length)]
@@ -134,7 +135,7 @@ async function runRound(round) {
         }
         charMap[rightInd] = true
         charMap[opp] = true
-        battle(ready[opp], ready[rightInd], round)
+        calls.push(battle(ready[opp], ready[rightInd], round))
       }
       left = !left
     }
@@ -144,8 +145,9 @@ async function runRound(round) {
     const maxHP = Number(resting[i].max_hp)
     resting[i].current_hp = newHP < maxHP ? newHP : maxHP
     let qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
-    query(qs, [resting[i].character_id, resting[i].current_hp])
+    calls.push(query(qs, [resting[i].character_id, resting[i].current_hp]))
   }
+  await Promise.all(calls)
 }
 
 async function battle(c1, c2, round) {
@@ -233,10 +235,10 @@ async function battle(c1, c2, round) {
       }
     }
     let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, boosts[0]+boosts[5], d1, boosts[1], boosts[2], boosts[3], boosts[4]])
+    await query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, boosts[0]+boosts[5], d1, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
     let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
-    query(qs, [c1.character_id, d1, c1.exp])
+    await query(qs, [c1.character_id, d1, c1.exp])
   }
   if(c2.exp >= c2.exp_for_next_level) {
     let boosts = [0, 0, 0, 0, 0, 0]
@@ -254,15 +256,15 @@ async function battle(c1, c2, round) {
       }
     }
     let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, boosts[0]+boosts[5], d2, boosts[1], boosts[2], boosts[3], boosts[4]])
+    await query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, boosts[0]+boosts[5], d2, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
     let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
-    query(qs, [c2.character_id, d2, c2.exp])
+    await query(qs, [c2.character_id, d2, c2.exp])
   }
   let qs = "INSERT into battles (winner_id, loser_id, round) values ($1, $2, $3)"
-  query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
+  await query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
   qs = "UPDATE users SET gold = gold + $2 WHERE user_id = $1"
-  query(qs, [c1Win ? c1.user_id : c2.user_id, 3*((c1Win ? c2.level : c1.level)+1)])
+  await query(qs, [c1Win ? c1.user_id : c2.user_id, 3*((c1Win ? c2.level : c1.level)+1)])
   console.log(c1)
   console.log(c2)
 }
