@@ -44,11 +44,12 @@ const characterRoutes = (app) => {
       let wi = 0
       let li = 0
       for(let i = 0; i < out.length; i++) {
-        if(out[i].character_id==wins[wi].winner_id) {
+        console.log()
+        if(wins.length > wi && out[i].character_id==wins[wi].winner_id) {
           out[i].wins = wins[wi].wins
           wi++
         }
-        if(out[i].character_id==losses[li].loser_id) {
+        if(losses.length > li && out[i].character_id==losses[li].loser_id) {
           out[i].losses = losses[li].losses
           li++
         }
