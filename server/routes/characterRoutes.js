@@ -31,7 +31,7 @@ const characterRoutes = (app) => {
   
   app.get('/characters/records', async (req, res) => {
     try {
-      let qs = "SELECT winner_id, COUNT(*) as wins FROM battles GROUP BY winner_id"
+      let qs = "SELECT winner_id, COUNT(*) as wins FROM battles GROUP BY winner_id ORDER BY winner_id"
       const wins = (await query(qs)).rows
     
       if (wins.length === 0) {
