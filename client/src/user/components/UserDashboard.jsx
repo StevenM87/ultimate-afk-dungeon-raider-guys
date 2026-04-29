@@ -126,7 +126,7 @@ function UserDashboard({ user, onLogout }) {
         <div className="dash-brand">
             <span className="dash-emblem">⚔</span>
             <div>
-                <h1 className="dash-title">Realm</h1>
+                <h1 className="dash-title">Ultimate AFK Dungeon Raider Guys</h1>
                 <p className="dash-subtitle">
                     {user.username} &nbsp;·&nbsp;
                     <span className="gold-chip">✦ {currentUser.gold ?? 0} gold</span>
@@ -136,7 +136,7 @@ function UserDashboard({ user, onLogout }) {
                         {characters.map((c) => (
                             <div key={c.character_id} className="header-char-row">
                                 <span className="header-char-name">
-                                    {c.character_type === 'bot' ? '🤖' : '🧙'} {c.character_name}
+                                    {c.character_type === 'bot' ? 'Bot' : 'Player'} {c.character_name}
                                 </span>
                                 <span className="header-char-stats">
                                     Lv{c.level ?? 1} &nbsp;·&nbsp;
@@ -226,7 +226,7 @@ function UserDashboard({ user, onLogout }) {
                         <span className="lb-col-name lb-name">
                             {entry.username}
                             <span className="lb-type-badge">
-                                {entry.character_type === 'bot' ? '🤖' : '🧙'}
+                                {entry.character_type === 'bot' ? 'Bot' : 'Player'}
                             </span>
                             {isMe && <span className="you-badge">YOU</span>}
                         </span>
@@ -339,7 +339,7 @@ function UserDashboard({ user, onLogout }) {
                 return (
                     <div key={c.character_id} className="char-card">
                     <div className="char-avatar">
-                        {c.character_type === 'bot' ? '🤖' : '🧙'}
+                        {c.character_type === 'bot' ? 'Bot' : 'Player'}
                     </div>
                     <div className="char-info">
                         <h4 className="char-name">{c.character_name}</h4>
