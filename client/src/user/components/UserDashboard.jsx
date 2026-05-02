@@ -9,6 +9,9 @@ import {
   fetchCharacters,          
   fetchCharacterRecords,    
   buyItem,
+  fetchCharacterEquips,
+  equipItem,
+  unequipItem,
 } from '../services/userApi'
 
 const TABS = ['leaderboard', 'shop', 'inventory']
@@ -27,6 +30,8 @@ function UserDashboard({ user, onLogout }) {
   const [buyingId, setBuyingId] = useState(null)
   const [allChars, setAllChars] = useState([])
   const [records, setRecords]   = useState([])
+  const [charEquips, setCharEquips] = useState({}) 
+  const [equipping, setEquipping] = useState(null)
 
   const currentUser =
   allUsers.find((u) => Number(u.user_id) === Number(user.user_id)) || user
@@ -50,10 +55,23 @@ function UserDashboard({ user, onLogout }) {
         setPotions(pots)
         setEquips(eqs)
         setCharacters(chars)
+        if (chars.length > 0) {
+          const equipResults = await Promise.all(
+            chars.map((c) =>
+              fetchCharacterEquips(c.character_id).catch(() => [])
+            )
+          )
+          const equipMap = {}
+          chars.forEach((c, i) => {
+            equipMap[c.character_id] = equipResults[i]
+          })
+          setCharEquips(equipMap)
+        }
         setUserPotions(uPots)
         setUserEquips(uEqs)
         setAllChars(allCharacters)                    
         setRecords(Array.isArray(charRecords) ? charRecords : []) 
+        
     } catch (err) {
       setError(err.message)
     } finally {
@@ -62,6 +80,36 @@ function UserDashboard({ user, onLogout }) {
   }
 
   useEffect(() => { loadAll() }, [])
+
+  const handleEquip = async (characterId, slot, itemId, itemName) => {
+    setEquipping(`${characterId}-${slot}-${itemId}`)
+    setActionMessage('')
+    setError('')
+    try {
+      await equipItem(user.user_id, characterId, slot, itemId)
+      setActionMessage(`Equipped ${itemName}!`)
+      await loadAll()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEquipping(null)
+    }
+  }
+
+  const handleUnequip = async (characterId, slot) => {
+    setEquipping(`${characterId}-${slot}-unequip`)
+    setActionMessage('')
+    setError('')
+    try {
+      await unequipItem(user.user_id, characterId, slot)
+      setActionMessage('Item unequipped.')
+      await loadAll()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEquipping(null)
+    }
+  }
 
   const handleBuy = async (type, itemId, itemName) => {
     setBuyingId(`${type}-${itemId}`)
@@ -391,34 +439,124 @@ function UserDashboard({ user, onLogout }) {
             </div>
             )}
 
-            {/* Equips owned */}
-            <h3 className="section-label">⚔ Equipment</h3>
-            {userEquips.length === 0 ? (
-            <p className="empty-msg">No equipment in bag.</p>
+            {/* Currently Equipped */}
+            <h3 className="section-label">Equipped Gear</h3>
+            {characters.length === 0 ? (
+              <p className="empty-msg">No characters yet.</p>
             ) : (
-            <div className="inv-list">
-                {userEquips.map((ue) => {
-                const details = equips.find((e) => e.equip_id == ue.equip_id)
+              characters.map((c) => {
+                const slots = charEquips[c.character_id] ?? []
                 return (
-                    <div key={ue.equip_id} className="inv-row">
-                    <span className="inv-icon">
-                        {details?.equip_type === 'weapon' ? '⚔'
-                        : details?.equip_type === 'armor' ? '🛡'
-                        : '💍'}
-                    </span>
-                    <span className="inv-name">
-                        {details ? details.equip_name : `Equip #${ue.equip_id}`}
-                    </span>
-                        {details && (
-                        <span className="inv-stats">
-                            {details.equip_type} · {formatEquipBoosts(details.boost_amount, details.boost_type)}
-                        </span>
-                        )}
-                    <span className="inv-count">×{ue.count}</span>
-                    </div>
+                  <div key={c.character_id} className="equipped-block">
+                    <h4 className="equipped-char-name">
+                      {c.character_type === 'bot' ? 'Bot' : 'Player'} — {c.character_name}
+                    </h4>
+                    {slots.length === 0 ? (
+                      <p className="empty-msg">Nothing equipped.</p>
+                    ) : (
+                      <div className="inv-list">
+                        {slots.map((slot) => {
+                          const details = slot.equip_id && slot.equip_id !== 0
+                            ? equips.find((e) => Number(e.equip_id) === Number(slot.equip_id))
+                            : null
+                          const isUnequipping = equipping === `${c.character_id}-${slot.equip_slot}-unequip`
+                          return (
+                            <div key={slot.equip_slot} className="inv-row">
+                              <span className="inv-icon">
+                                {slot.equip_slot === 'weapon' ? '⚔'
+                                  : slot.equip_slot === 'armor' ? '🛡' : '💍'}
+                              </span>
+                              <span className="inv-name">
+                                <span className="slot-label">{slot.equip_slot}:</span>{' '}
+                                {details ? details.equip_name : '— empty —'}
+                              </span>
+                              {details && (
+                                <span className="inv-stats">
+                                  {formatEquipBoosts(details.boost_amount, details.boost_type)}
+                                </span>
+                              )}
+                              {details && (
+                                <button
+                                  type="button"
+                                  className="unequip-btn"
+                                  disabled={!!equipping}
+                                  onClick={() => handleUnequip(c.character_id, slot.equip_slot)}
+                                >
+                                  {isUnequipping ? '...' : 'Unequip'}
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 )
+              })
+            )}
+
+            {/* Equipment in Bag */}
+            <h3 className="section-label">⚔ Equipment in Bag</h3>
+            {userEquips.length === 0 ? (
+              <p className="empty-msg">No equipment in bag.</p>
+            ) : (
+              <div className="inv-list">
+                {userEquips.map((ue) => {
+                  const details = equips.find((e) => e.equip_id == ue.equip_id)
+                  return (
+                    <div key={ue.equip_id} className="inv-row">
+                      <span className="inv-icon">
+                        {details?.equip_type === 'weapon' ? '⚔'
+                          : details?.equip_type === 'armor' ? '🛡' : '💍'}
+                      </span>
+                      <span className="inv-name">
+                        {details ? details.equip_name : `Equip #${ue.equip_id}`}
+                      </span>
+                      {details && (
+                        <span className="inv-stats">
+                          {details.equip_type} · {formatEquipBoosts(details.boost_amount, details.boost_type)}
+                        </span>
+                      )}
+                      <span className="inv-count">×{ue.count}</span>
+                      {/* Equip buttons  */}
+                      {details && characters.map((c) => {
+                        const validSlot =
+                          details.equip_type === 'weapon' ? 'weapon'
+                          : details.equip_type === 'armor' ? 'armor'
+                          : null 
+                        const slots = ['accessory_1', 'accessory_2']
+                        const isEquipping = (slot) => equipping === `${c.character_id}-${slot}-${ue.equip_id}`
+
+                        if (details.equip_type === 'accessory') {
+                          return slots.map((slot) => (
+                            <button
+                              key={`${c.character_id}-${slot}`}
+                              type="button"
+                              className="equip-btn"
+                              disabled={!!equipping}
+                              onClick={() => handleEquip(c.character_id, slot, ue.equip_id, details.equip_name)}
+                            >
+                              {isEquipping(slot) ? '...' : `Equip → ${c.character_name} (${slot})`}
+                            </button>
+                          ))
+                        }
+
+                        return validSlot ? (
+                          <button
+                            key={c.character_id}
+                            type="button"
+                            className="equip-btn"
+                            disabled={!!equipping}
+                            onClick={() => handleEquip(c.character_id, validSlot, ue.equip_id, details.equip_name)}
+                          >
+                            {isEquipping(validSlot) ? '...' : `Equip → ${c.character_name}`}
+                          </button>
+                        ) : null
+                      })}
+                    </div>
+                  )
                 })}
-            </div>
+              </div>
             )}
         </section>
         )}
