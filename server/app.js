@@ -3,7 +3,7 @@ import cors from 'cors'
 import 'dotenv/config'
 
 
-import { query } from './db/postgres.js'
+import { query, getClient } from './db/postgres.js'
 
 import characterRoutes from './routes/characterRoutes.js'
 import userRoutes from './routes/userRoutes.js'
@@ -53,14 +53,14 @@ async function numBattles() {
   simData.next_round = Number(simData.next_round)
 }
 
-async function checkUpdating() {
+async function checkUpdating(client) {
   let qs = "SELECT * FROM updating"
-  let upd = (await query(qs)).rows[0]
+  let upd = (await client.query(qs)).rows[0]
   updating = upd.running
   if(updating && new Date() - new Date(upd.last) > 1000 * 60) {
     updating = false
     qs = "UPDATE updating SET running = false, last = NULL"
-    await query(qs)
+    await client.query(qs)
   }
 }
 
@@ -82,45 +82,47 @@ async function pingUpdating() {
 }
 
 async function checkForBattles() {
+  const client = await getClient()
+  try {
     let qs = "BEGIN"
-    await query(qs)
-    try {
-      qs = "LOCK TABLE updating IN ACCESS EXCLUSIVE MODE"
-      await query(qs)
-      await checkUpdating()
-      if(!updating ) {
-        await numBattles()
-        if(simData.newRounds > 0) {
-          updating = true
-          thisUpdating = true
-          qs = "UPDATE updating SET running = true, last = $1"
-          await query(qs, [new Date()])
-          await query("COMMIT")
-          console.log("Expected rounds:", simData.newRounds)
-          for(let i = 0; i < simData.newRounds; i++) {
-            console.log(`Running round ${i + 1} / ${simData.newRounds}`)
-            await runRound(simData.next_round)
-            simData.time = new Date(simData.time.getTime() + (1000*60*30))
-            simData.next_round++
-            qs = "UPDATE last_update SET time = $1, next_round = $2"
-            await query(qs, [simData.time, simData.next_round])
-          }
-          console.log(simData.time)
-          simData.newRounds = 0
-          qs = "UPDATE updating SET running = false, last = NULL"
-          await query(qs)
-          updating = false
-          thisUpdating = false
-        } else {
-          await query("COMMIT")
+    await client.query(qs)
+    qs = "LOCK TABLE updating IN ACCESS EXCLUSIVE MODE"
+    await client.query(qs)
+    await checkUpdating(client)
+    if(!updating ) {
+      await numBattles()
+      if(simData.newRounds > 0) {
+        updating = true
+        thisUpdating = true
+        qs = "UPDATE updating SET running = true, last = $1"
+        await client.query(qs, [new Date()])
+        await client.query("COMMIT")
+        console.log("Expected rounds:", simData.newRounds)
+        for(let i = 0; i < simData.newRounds; i++) {
+          console.log(`Running round ${i + 1} / ${simData.newRounds}`)
+          await runRound(simData.next_round)
+          simData.time = new Date(simData.time.getTime() + (1000*60*30))
+          simData.next_round++
+          qs = "UPDATE last_update SET time = $1, next_round = $2"
+          await query(qs, [simData.time, simData.next_round])
         }
+        console.log(simData.time)
+        simData.newRounds = 0
+        qs = "UPDATE updating SET running = false, last = NULL"
+        await query(qs)
+        updating = false
+        thisUpdating = false
       } else {
-        await query("COMMIT")
+        await client.query("COMMIT")
       }
-    } catch(err) {
-      console.log(err)
-      await query("ROLLBACK")
+    } else {
+      await client.query("COMMIT")
     }
+  } catch(err) {
+    console.log(err)
+    await client.query("COMMIT")
+  }
+  client.release()
 }
 
 async function runRound(round) {
@@ -321,5 +323,5 @@ async function battle(c1, c2, round) {
   console.log(c2)
 }
 
-setInterval(checkForBattles, 1000*10)
+setInterval(checkForBattles, 1000*20)
 setInterval(pingUpdating, 1000*5)

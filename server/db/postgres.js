@@ -1,7 +1,7 @@
 import pg from 'pg'
-const { Client } = pg
+const { Pool } = pg
  
-const client = new Client({
+const pool = new Pool({
   host: process.env.POSTGRES_HOST,
   port: Number(process.env.POSTGRES_PORT),
   database: process.env.POSTGRES_DBNAME,
@@ -12,13 +12,13 @@ const client = new Client({
   }
 })
 
-client.connect()
+pool.connect()
 
 export const query = async (text, values) => {
     try{
         const now = new Date()
         console.log("query to be executed:", text)
-        const res = await client.query(text, values)
+        const res = await pool.query(text, values)
         const now2 = new Date()
         console.log(`it took ${now2-now}ms to run`)
         return res
@@ -27,6 +27,19 @@ export const query = async (text, values) => {
         console.error(err)
         throw err
     }
+}
+
+export const getClient = async () => {
+  const client = await pool.connect()
+
+  const originalQuery = client.query.bind(client)
+
+  client.query = async (...args) => {
+    console.log("client query:", args[0])
+    return originalQuery(...args)
+  }
+
+  return client
 }
 
 /* 
