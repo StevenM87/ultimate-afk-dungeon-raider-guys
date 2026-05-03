@@ -32,14 +32,13 @@ export const query = async (text, values) => {
 export const getClient = async () => {
   const client = await pool.connect()
 
-  const originalQuery = client.query.bind(client)
-
-  client.query = async (...args) => {
-    console.log("client query:", args[0])
-    return originalQuery(...args)
+  return {
+    query: async (...args) => {
+      console.log("client query:", args[0])
+      return client.query(...args)
+    },
+    release: () => client.release()
   }
-
-  return client
 }
 
 /* 

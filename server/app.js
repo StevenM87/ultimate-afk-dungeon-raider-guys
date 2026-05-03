@@ -83,28 +83,36 @@ async function pingUpdating() {
 
 async function checkForBattles() {
   const client = await getClient()
+  await client.query("BEGIN")
   try {
-    let qs = "BEGIN"
-    await client.query(qs)
-    qs = "LOCK TABLE updating IN ACCESS EXCLUSIVE MODE"
-    await client.query(qs)
+    await client.query("LOCK TABLE updating IN ACCESS EXCLUSIVE MODE")
     await checkUpdating(client)
-    if(!updating ) {
+    if(!updating) {
       await numBattles()
       if(simData.newRounds > 0) {
         updating = true
         thisUpdating = true
-        qs = "UPDATE updating SET running = true, last = $1"
+        let qs = "UPDATE updating SET running = true, last = $1"
         await client.query(qs, [new Date()])
         await client.query("COMMIT")
         console.log("Expected rounds:", simData.newRounds)
         for(let i = 0; i < simData.newRounds; i++) {
-          console.log(`Running round ${i + 1} / ${simData.newRounds}`)
-          await runRound(simData.next_round)
-          simData.time = new Date(simData.time.getTime() + (1000*60*30))
-          simData.next_round++
-          qs = "UPDATE last_update SET time = $1, next_round = $2"
-          await query(qs, [simData.time, simData.next_round])
+          const client = await getClient()
+          await client.query("BEGIN")
+          try {
+            console.log(`Running round ${i + 1} / ${simData.newRounds}`)
+            await runRound(simData.next_round, client)
+            simData.time = new Date(simData.time.getTime() + (1000*60*30))
+            simData.next_round++
+            qs = "UPDATE last_update SET time = $1, next_round = $2"
+            await client.query(qs, [simData.time, simData.next_round])
+            await client.query("COMMIT")
+          } catch(err) {
+            console.log(err)
+            await client.query("ROLLBACK")
+          } finally {
+            client.release()
+          }
         }
         console.log(simData.time)
         simData.newRounds = 0
@@ -125,14 +133,15 @@ async function checkForBattles() {
   client.release()
 }
 
-async function runRound(round) {
+async function runRound(round, client) {
   let qs = "SELECT * FROM characters WHERE current_hp / max_hp < 0.5"
-  let resting = (await query(qs)).rows
+  let resting = (await client.query(qs)).rows
   qs = "SELECT * FROM characters WHERE current_hp / max_hp >= 0.5"
-  let ready = (await query(qs)).rows
+  let ready = (await client.query(qs)).rows
   let calls = []
   if(ready.length % 2 == 1) {
     const bots = ready.filter(char => char.character_type === "bot")
+    console.log("bots length" + bots.length)
     const leaveOut = bots.length > 0 ? bots[Math.floor(Math.random()*bots.length)] : ready[Math.floor(Math.random()*ready.length)]
     ready = ready.filter(char => char.character_id !== leaveOut.character_id)
     resting.push(leaveOut)
@@ -167,7 +176,7 @@ async function runRound(round) {
         }
         charMap[leftInd] = true
         charMap[opp] = true
-        calls.push(battle(ready[leftInd], ready[opp], round))
+        calls.push(battle(ready[leftInd], ready[opp], round, client))
         console.log("(" + ready[leftInd].character_name + ", " + ready[opp].character_name + ")")
       } else {
         while(charMap[rightInd]) {
@@ -190,7 +199,7 @@ async function runRound(round) {
         }
         charMap[rightInd] = true
         charMap[opp] = true
-        calls.push(battle(ready[opp], ready[rightInd], round))
+        calls.push(battle(ready[opp], ready[rightInd], round, client))
         console.log("(" + ready[opp].character_name + ", " + ready[rightInd].character_name + ")")
       }
       left = !left
@@ -201,12 +210,12 @@ async function runRound(round) {
     const maxHP = Number(resting[i].max_hp)
     resting[i].current_hp = newHP < maxHP ? newHP : maxHP
     let qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
-    calls.push(query(qs, [resting[i].character_id, resting[i].current_hp]))
+    calls.push(client.query(qs, [resting[i].character_id, resting[i].current_hp]))
   }
   await Promise.all(calls)
 }
 
-async function battle(c1, c2, round) {
+async function battle(c1, c2, round, client) {
   c1.attack = Number(c1.attack)
   c2.attack = Number(c2.attack)
   c1.defense = Number(c1.defense)
@@ -227,8 +236,10 @@ async function battle(c1, c2, round) {
   c2.exp_for_next_level = Number(c2.exp_for_next_level)
   let e1 = 0
   let e2 = 0
-  let p1 = c1.speed / c2.speed > 1 ? 1 : c1.speed / c2.speed
-  let p2 = c2.speed / c1.speed > 1 ? 1 : c2.speed / c1.speed
+  let speed1 = c1.speed > 0 ? c1.speed : 1
+  let speed2 = c2.speed > 0 ? c2.speed : 1
+  let p1 = speed1 / speed2 > 1 ? 1 : speed1 / speed2
+  let p2 = speed2 / speed1 > 1 ? 1 : speed2 / speed1
   let rRange = 2*(Math.sqrt(1.25)-1)
   let d1 = 0
   let d2 = 0
@@ -289,10 +300,10 @@ async function battle(c1, c2, round) {
       }
     }
     let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    await query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, boosts[0]+boosts[5], d1, boosts[1], boosts[2], boosts[3], boosts[4]])
+    await client.query(qs, [c1.character_id, c1.level, c1.exp, c1.exp_for_next_level, boosts[0]+boosts[5], d1, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
     let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
-    await query(qs, [c1.character_id, d1, c1.exp])
+    await client.query(qs, [c1.character_id, d1, c1.exp])
   }
   if(c2.exp >= c2.exp_for_next_level) {
     let boosts = [0, 0, 0, 0, 0, 0]
@@ -310,15 +321,15 @@ async function battle(c1, c2, round) {
       }
     }
     let qs = "UPDATE characters SET level = $2, exp = $3, exp_for_next_level = $4, max_hp = max_hp + $5, current_hp = current_hp - $6, attack = attack + $7, defense = defense + $8, speed = speed + $9, heal_rate = heal_rate + $10 WHERE character_id = $1"
-    await query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, boosts[0]+boosts[5], d2, boosts[1], boosts[2], boosts[3], boosts[4]])
+    await client.query(qs, [c2.character_id, c2.level, c2.exp, c2.exp_for_next_level, boosts[0]+boosts[5], d2, boosts[1], boosts[2], boosts[3], boosts[4]])
   } else {
     let qs = "UPDATE characters SET current_hp = current_hp - $2, exp = $3 WHERE character_id = $1"
-    await query(qs, [c2.character_id, d2, c2.exp])
+    await client.query(qs, [c2.character_id, d2, c2.exp])
   }
   let qs = "INSERT into battles (winner_id, loser_id, round) values ($1, $2, $3)"
-  await query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
+  await client.query(qs, [c1Win ? c1.character_id : c2.character_id, c1Win ? c2.character_id : c1.character_id, round])
   qs = "UPDATE users SET gold = gold + $2 WHERE user_id = $1"
-  await query(qs, [c1Win ? c1.user_id : c2.user_id, 3*((c1Win ? c2.level : c1.level)+1)])
+  await client.query(qs, [c1Win ? c1.user_id : c2.user_id, 3*((c1Win ? c2.level : c1.level)+1)])
   console.log(c1)
   console.log(c2)
 }
