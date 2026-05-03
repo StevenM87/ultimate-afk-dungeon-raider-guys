@@ -38,7 +38,8 @@ app.listen(app.get('port'), () => {
     console.log('  Press CTRL-C to stop\n')
 })
 
-let updating = false
+let updating = null
+let thisUpdating = false
 
 let simData = {}
 async function numBattles() {
@@ -49,27 +50,77 @@ async function numBattles() {
   let now = new Date()
   let rounds = Math.floor((now-simData.time)/(1000*60*30))
   simData.newRounds = rounds > 0 ? rounds : 0
-  console.log(simData.newRounds)
   simData.next_round = Number(simData.next_round)
 }
 
-async function checkForBattles() {
-  if(!updating) {
-    await numBattles()
-    if(simData.newRounds > 0) {
-      updating = true
-      for(let i = 0; i < simData.newRounds; i++) {
-        await runRound(simData.next_round)
-        simData.next_round++
-      }
-      simData.time = new Date(simData.time.getTime() + (simData.newRounds)*(1000*60*30))
-      console.log(simData.time)
-      let qs = "UPDATE last_update SET time = $1, next_round = $2"
-      query(qs, [simData.time, simData.next_round])
-      simData.newRounds = 0
-      updating = false
-    }
+async function checkUpdating() {
+  let qs = "SELECT * FROM updating"
+  let upd = (await query(qs)).rows[0]
+  updating = upd.running
+  if(updating && new Date() - new Date(upd.last) > 1000 * 60) {
+    updating = false
+    qs = "UPDATE updating SET running = false, last = NULL"
+    await query(qs)
   }
+}
+
+async function pingUpdating() {
+  if(updating && thisUpdating) {
+    console.log("I am updating")
+  }
+  if(updating && !thisUpdating) {
+    console.log("Someone else is updating")
+  }
+  if(!updating && !thisUpdating) {
+    console.log("No one is updating")
+  }
+  if(thisUpdating) {
+    let qs = "UPDATE updating SET running = true, last = $1"
+    await query(qs, [new Date()])
+    await query("COMMIT")
+  }
+}
+
+async function checkForBattles() {
+    let qs = "BEGIN"
+    await query(qs)
+    try {
+      qs = "LOCK TABLE updating IN ACCESS EXCLUSIVE MODE"
+      await query(qs)
+      await checkUpdating()
+      if(!updating ) {
+        await numBattles()
+        if(simData.newRounds > 0) {
+          updating = true
+          thisUpdating = true
+          qs = "UPDATE updating SET running = true, last = $1"
+          await query(qs, [new Date()])
+          await query("COMMIT")
+          console.log("Expected rounds:", simData.newRounds)
+          for(let i = 0; i < simData.newRounds; i++) {
+            console.log(`Running round ${i + 1} / ${simData.newRounds}`)
+            await runRound(simData.next_round)
+            simData.time = new Date(simData.time.getTime() + (1000*60*30))
+            simData.next_round++
+            qs = "UPDATE last_update SET time = $1, next_round = $2"
+            await query(qs, [simData.time, simData.next_round])
+          }
+          console.log(simData.time)
+          simData.newRounds = 0
+          qs = "UPDATE updating SET running = false, last = NULL"
+          await query(qs)
+          updating = false
+          thisUpdating = false
+        } else {
+          await query("COMMIT")
+        }
+      } else {
+        await query("COMMIT")
+      }
+    } catch(err) {
+      console.log(err)
+      await query("ROLLBACK")
+    }
 }
 
 async function runRound(round) {
@@ -84,6 +135,7 @@ async function runRound(round) {
     ready = ready.filter(char => char.character_id !== leaveOut.character_id)
     resting.push(leaveOut)
   }
+  console.log("Round: " + round)
   if(ready.length > 1) {
     ready.sort((a, b) => a.level - b.level)
     const range = Math.floor(ready.length / 10) + 3
@@ -113,7 +165,8 @@ async function runRound(round) {
         }
         charMap[leftInd] = true
         charMap[opp] = true
-        battle(ready[leftInd], ready[opp], round)
+        calls.push(battle(ready[leftInd], ready[opp], round))
+        console.log("(" + ready[leftInd].character_name + ", " + ready[opp].character_name + ")")
       } else {
         while(charMap[rightInd]) {
           rightInd--
@@ -136,6 +189,7 @@ async function runRound(round) {
         charMap[rightInd] = true
         charMap[opp] = true
         calls.push(battle(ready[opp], ready[rightInd], round))
+        console.log("(" + ready[opp].character_name + ", " + ready[rightInd].character_name + ")")
       }
       left = !left
     }
@@ -214,8 +268,6 @@ async function battle(c1, c2, round) {
     d2 += c2.current_hp
     c2.current_hp = 0
   }
-  console.log(d1)
-  console.log(d2)
   const c1Win = c1.current_hp > 0
   c1.exp += Math.floor((c1Win ? 4 : 2)*((c2.level + 1) ** 1.5))
   c2.exp += Math.floor((c1Win ? 2 : 4)*((c1.level + 1) ** 1.5))
@@ -269,4 +321,5 @@ async function battle(c1, c2, round) {
   console.log(c2)
 }
 
-setInterval(checkForBattles, 1000*60)
+setInterval(checkForBattles, 1000*10)
+setInterval(pingUpdating, 1000*5)
