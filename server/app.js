@@ -29,6 +29,20 @@ app.get('/up', (req, res) => {
   res.json({status: 'up'})
 })
 
+app.post('/rounds', (req, res) => {
+  const body = req.body
+  const rounds = Number(body.rounds)
+  if(!rounds || !(Number.isInteger(rounds) && rounds > 0)) {
+    return res.send("rounds must be a positive integer")
+  }
+  if(updating) {
+    return res.send("Wait until previous rounds are finished before sending more rounds")
+  }
+  console.log(`Adding ${rounds} rounds`)
+  forceRounds += Number(rounds)
+  return res.json([])
+})
+
 characterRoutes(app)
 userRoutes(app)
 itemRoutes(app)
@@ -42,6 +56,7 @@ let updating = null
 let thisUpdating = false
 
 let simData = {}
+let forceRounds = 0
 async function numBattles() {
   let qs = "SELECT * FROM last_update"
   simData = (await query(qs)).rows[0]
@@ -89,7 +104,7 @@ async function checkForBattles() {
     await checkUpdating(client)
     if(!updating) {
       await numBattles()
-      if(simData.newRounds > 0) {
+      if(simData.newRounds > 0 || forceRounds > 0) {
         updating = true
         thisUpdating = true
         let qs = "UPDATE updating SET running = true, last = $1"
@@ -114,8 +129,26 @@ async function checkForBattles() {
             client.release()
           }
         }
+        for(let i = 0; i < forceRounds; i++) {
+          const client = await getClient()
+          await client.query("BEGIN")
+          try {
+            console.log(`Running round ${i + 1} / ${forceRounds}`)
+            await runRound(simData.next_round, client)
+            simData.next_round++
+            qs = "UPDATE last_update SET next_round = $1"
+            await client.query(qs, [simData.next_round])
+            await client.query("COMMIT")
+          } catch(err) {
+            console.log(err)
+            await client.query("ROLLBACK")
+          } finally {
+            client.release()
+          }
+        }
         console.log(simData.time)
         simData.newRounds = 0
+        forceRounds = 0
         qs = "UPDATE updating SET running = false, last = NULL"
         await query(qs)
         updating = false

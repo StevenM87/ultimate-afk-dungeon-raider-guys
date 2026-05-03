@@ -1,4 +1,4 @@
-import { query } from '../db/postgres.js'
+import { query, getClient } from '../db/postgres.js'
 
 const roles = ["player", "admin", "bot"]
 const types = ["player", "bot"]
@@ -114,15 +114,17 @@ const userRoutes = (app) => {
     if(!items.includes(item)) {
       return res.send("Invalid item type")
     }
+    const client = await getClient()
+    client.query("BEGIN")
     try {
       let qs = `SELECT cost FROM ${item}s WHERE ${item}_id = $1`
-      let cost = await query(qs, [iid])
+      let cost = await client.query(qs, [iid])
       if(cost.rows.length === 0) {
         return res.send("Item with this index does not exist")
       }
       cost = cost.rows[0].cost
       qs = "SELECT gold FROM users WHERE user_id = $1"
-      let gold = await query(qs, [id])
+      let gold = await client.query(qs, [id])
       if(gold.rows.length === 0) {
         return res.send("User with this index does not exist")
       }
@@ -130,18 +132,23 @@ const userRoutes = (app) => {
       if(Number(gold) < Number(cost)) {
         return res.send("User does not have enough gold to buy this")
       }
-      try {
+      qs = `SELECT * FROM user_${item}s WHERE user_id = $1 AND ${item}_id = $2`
+      const exist = (await client.query(qs, [id, iid])).rows.length != 0
+      if(!exist) {
         qs = `INSERT into user_${item}s (user_id, ${item}_id) values ($1, $2)`
-        await query(qs, [id, iid])
-      } catch(err) {
-        console.log("user already has one or more of these, adding to entry")
+        await client.query(qs, [id, iid])
       }
       qs = `UPDATE user_${item}s SET count = count + 1 WHERE user_id = $1 AND ${item}_id = $2`
-      await query(qs, [id, iid])
+      await client.query(qs, [id, iid])
       qs = "UPDATE users SET gold = $2 WHERE user_id = $1"
-      query(qs, [id, gold-cost]).then(data => res.json(data.rows))
+      await client.query(qs, [id, gold-cost]).then(data => res.json(data.rows))
+      await client.query("COMMIT")
     } catch(err) {
       console.log(err)
+      await client.query("ROLLBACK")
+      res.json({message: "Unable to buy item"})
+    } finally {
+      client.release()
     }
   }
   
@@ -157,7 +164,7 @@ const userRoutes = (app) => {
       console.log(err)
     }
   })
-  
+
   app.post('/users/:user_id/characters', async (req, res) => {
     const id = req.params.user_id
     const body = req.body
@@ -169,18 +176,27 @@ const userRoutes = (app) => {
     if(!name) {
       return res.send("character_name is required")
     }
+    const client = await getClient()
+    client.query("BEGIN")
     try {
       let qs = "INSERT into characters (user_id, character_name, character_type) values ($1, $2, $3)"
-      await query(qs, [id, name, type])
+      await client.query(qs, [id, name, type])
       qs = "SELECT character_id FROM characters WHERE character_name = $1"
-      let cid = await query(qs, [name]).then(data => data.rows[0].character_id)
-      slots.forEach(slot => {
-        qs = "INSERT into character_equips (character_id, equip_slot) values ($1, $2)"
-        query(qs, [cid, slot])
-      })
+      let cid = await client.query(qs, [name]).then(data => data.rows[0].character_id)
+      await Promise.all(
+        slots.map(slot => {
+          qs = "INSERT into character_equips (character_id, equip_slot) values ($1, $2)"
+          return client.query(qs, [cid, slot])
+        })
+      )
+      await client.query("COMMIT")
       res.json([]) 
     } catch(err) {
       console.log(err)
+      await client.query("ROLLBACK")
+      res.json({message: "Unable to create character"})
+    } finally {
+      client.release()
     }
   })
   
@@ -198,25 +214,33 @@ const userRoutes = (app) => {
   app.delete('/users/:user_id/characters/:character_id', async (req, res) => {
     const id = req.params.user_id
     const cid = req.params.character_id
+    const client = await getClient()
+    client.query("BEGIN")
     try {
       let qs = "SELECT equip_id FROM character_equips WHERE character_id = $1"
-      let items = (await query(qs, [cid])).rows
+      let items = (await client.query(qs, [cid])).rows
       for(let item of items) {
         if(item.equip_id!=0) {
           try {
             qs = "INSERT into user_equips (user_id, equip_id) values ($1, $2)"
-            await query(qs, [id, item.equip_id])
+            await client.query(qs, [id, item.equip_id])
           } catch(err) {
             console.log("user already has one or more of these, adding to entry")
           }
           qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
-          await query(qs, [id, item.equip_id])
+          await client.query(qs, [id, item.equip_id])
         }
       }
       qs = "DELETE FROM characters WHERE character_id = $1"
-      query(qs, [cid]).then(data => res.json(data.rows))  
+      const data = await client.query(qs, [cid])
+      await client.query("COMMIT")
+      res.json(data.rows)
     } catch(err) {
       console.log(err)
+      await client.query("ROLLBACK")
+      res.json({message: "Unable to delete character"})
+    } finally {
+      client.release()
     }
   })
   
@@ -228,14 +252,16 @@ const userRoutes = (app) => {
     if(!slots.includes(slot)) {
       return res.send("Invalid equip slot")
     }
+    const client = await getClient()
+    client.query("BEGIN")
     try {
       let qs = "SELECT equip_type FROM equips WHERE equip_id = $1"
-      let type = await query(qs, [iid])
+      let type = await client.query(qs, [iid])
       if(type.rows.length === 0) {
         return res.send("Equip with this index does not exist")
       }
       qs = "SELECT * FROM users WHERE user_id = $1"
-      let usr = await query(qs, [id])
+      let usr = await client.query(qs, [id])
       if(usr.rows.length === 0) {
         return res.send("User with this index does not exist")
       }
@@ -245,13 +271,13 @@ const userRoutes = (app) => {
       }
       if(iid!=0) {
         qs = "SELECT count FROM user_equips WHERE user_id = $1 AND equip_id = $2"
-        let count = await query(qs, [id, iid])
+        let count = await client.query(qs, [id, iid])
         if(count.rows.length === 0 || count.rows[0].count == 0) {
           return res.send("User with this index does not have any of specified equip")
         }
       }
       qs = "SELECT equip_id FROM character_equips WHERE character_id = $1 AND equip_slot = $2"
-      let old = await query(qs, [cid, slot])
+      let old = await client.query(qs, [cid, slot])
       if(old.rows.length === 0) {
         return res.send("Character with this index does not exist")
       }
@@ -261,9 +287,9 @@ const userRoutes = (app) => {
       }
       if(old!=0) {
         qs = "UPDATE user_equips SET count = count + 1 WHERE user_id = $1 AND equip_id = $2"
-        await query(qs, [id, old])
+        await client.query(qs, [id, old])
         qs = "SELECT boost_type, boost_amount FROM equips WHERE equip_id = $1"
-        let boosts = (await query(qs, [old])).rows[0]
+        let boosts = (await client.query(qs, [old])).rows[0]
         let sets = "SET"
         for(let i = 0; i < boosts.boost_type.length; i++) {
           sets = `${sets} ${boosts.boost_type[i]} = ${boosts.boost_type[i]} - ${boosts.boost_amount[i]},`
@@ -273,13 +299,13 @@ const userRoutes = (app) => {
         }
         sets = sets.slice(0, -1)
         qs = `UPDATE characters ${sets} WHERE character_id = $1`
-        await query(qs, [cid])
+        await client.query(qs, [cid])
       }
       if(iid!=0) {
         qs = "UPDATE user_equips SET count = count - 1 WHERE user_id = $1 AND equip_id = $2"
-        await query(qs, [id, iid])
+        await client.query(qs, [id, iid])
         qs = "SELECT boost_type, boost_amount FROM equips WHERE equip_id = $1"
-        let boosts = (await query(qs, [iid])).rows[0]
+        let boosts = (await client.query(qs, [iid])).rows[0]
         let sets = "SET"
         for(let i = 0; i < boosts.boost_type.length; i++) {
           sets = `${sets} ${boosts.boost_type[i]} = ${boosts.boost_type[i]} + ${boosts.boost_amount[i]},`
@@ -289,12 +315,18 @@ const userRoutes = (app) => {
         }
         sets = sets.slice(0, -1)
         qs = `UPDATE characters ${sets} WHERE character_id = $1`
-        await query(qs, [cid])
+        await client.query(qs, [cid])
       }
       qs = "UPDATE character_equips SET equip_id = $3 WHERE character_id = $1 AND equip_slot = $2"
-      await query(qs, [cid, slot, iid]).then(data => res.json(data.rows))
+      const data = await client.query(qs, [cid, slot, iid])
+      await client.query("COMMIT")
+      res.json(data.rows)
     } catch(err) {
       console.log(err)
+      await client.query("ROLLBACK")
+      res.json({message: "Unable to equip item"})
+    } finally {
+      client.release()
     }
   }
   
@@ -305,26 +337,28 @@ const userRoutes = (app) => {
     const id = req.params.user_id
     const cid = req.params.character_id
     const iid = req.params.item_id
+    const client = await getClient()
+    client.query("BEGIN")
     try {
       let qs = "SELECT heal_raw, heal_percent FROM potions WHERE potion_id = $1"
-      let potion = await query(qs, [iid])
+      let potion = await client.query(qs, [iid])
       if(potion.rows.length === 0) {
         return res.send("Potion with this index does not exist")
       }
       const heal_raw = Number(potion.rows[0].heal_raw)
       const heal_percent = Number(potion.rows[0].heal_percent)
       qs = "SELECT * FROM users WHERE user_id = $1"
-      let usr = await query(qs, [id])
+      let usr = await client.query(qs, [id])
       if(usr.rows.length === 0) {
         return res.send("User with this index does not exist")
       }
       qs = "SELECT count FROM user_potions WHERE user_id = $1 AND potion_id = $2"
-      let count = await query(qs, [id, iid])
+      let count = await client.query(qs, [id, iid])
       if(count.rows.length === 0 || count.rows[0].count == 0) {
         return res.send("User with this index does not have any of specified item")
       }
       qs = "SELECT max_hp, current_hp FROM characters WHERE character_id = $1"
-      let hp = await query(qs, [cid])
+      let hp = await client.query(qs, [cid])
       if(hp.rows.length === 0) {
         return res.send("Character with this index does not exist")
       }
@@ -336,11 +370,17 @@ const userRoutes = (app) => {
       current += heal_raw
       current += Math.round(max*heal_percent*(0.8+Math.random()*0.4))
       qs = "UPDATE user_potions SET count = count - 1 WHERE user_id = $1 AND potion_id = $2"
-      await query(qs, [id, iid])
+      await client.query(qs, [id, iid])
       qs = "UPDATE characters SET current_hp = $2 WHERE character_id = $1"
-      await query(qs, [cid, current < max ? current : max]).then(data => res.json(data.rows))
+      const data = await client.query(qs, [cid, current < max ? current : max])
+      await client.query("COMMIT")
+      res.json(data.rows)
     } catch(err) {
       console.log(err)
+      await client.query("ROLLBACK")
+      res.json({message: "Unable to use potion"})
+    } finally {
+      client.release()
     }
   }
   
