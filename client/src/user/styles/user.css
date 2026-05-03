@@ -689,3 +689,40 @@ body {
   font-size: 0.78rem;
   font-weight: 600;
 }
+
+.equipped-block {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.equipped-char-name {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+.slot-label {
+  text-transform: capitalize;
+  color: var(--text-muted, #aaa);
+  font-size: 0.8rem;
+}
+.equip-btn {
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  background: var(--accent, #4a9eff);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.unequip-btn {
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  background: var(--danger, #e05);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}

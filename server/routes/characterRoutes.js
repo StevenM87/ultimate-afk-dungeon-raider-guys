@@ -73,6 +73,18 @@ const characterRoutes = (app) => {
     }
   })
   
+  app.get('/characters/:character_id/equips', async (req, res) => {
+    const cid = req.params.character_id
+    try {
+      const qs = "SELECT * FROM character_equips WHERE character_id = $1 ORDER BY equip_slot"
+      const result = await query(qs, [cid])
+      res.json(result.rows)
+    } catch (err) {
+      console.log(err)
+      res.status(500).json([])
+    }
+  })
+
   app.get('/characters/:character_id', (req, res) => {
     const cid = req.params.character_id
     try {

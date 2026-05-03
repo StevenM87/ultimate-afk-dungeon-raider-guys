@@ -79,6 +79,23 @@ export async function fetchEquips() {
   return request('/equips')
 }
 
+export async function fetchCharacterEquips(characterId) {
+  return request(`/characters/${characterId}/equips`)
+}
+
+export async function equipItem(userId, characterId, slot, itemId) {
+  return request(`/users/${userId}/characters/${characterId}/equip/${slot}/${itemId}`, {
+    method: 'POST',
+  })
+}
+
+export async function unequipItem(userId, characterId, slot) {
+  return request(`/users/${userId}/characters/${characterId}/equip/${slot}/0`, {
+    method: 'POST',
+  })
+}
+
+
 export async function fetchUserCharacters(userId) {
   return request(`/users/${userId}/characters`)
 }
