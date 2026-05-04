@@ -347,7 +347,8 @@ const userRoutes = (app) => {
       }
       type = type.rows[0].equip_type
       if(!((type==="weapon" && slot==="weapon") || (type==="armor" && slot==="armor") || (type==="accessory" && (slot==="accessory_1" || slot==="accessory_2")) || type==="nothing")) {
-        return res.status(403).json({message: "Equip with this id does not equip to this slot"})
+        // Teapot status because it's funny and kind of accurate, should technically be a 403
+        return res.status(418).json({message: "Equip with this id does not equip to this slot"})
       }
       if(iid!=0) {
         qs = "SELECT count FROM user_equips WHERE user_id = $1 AND equip_id = $2"
