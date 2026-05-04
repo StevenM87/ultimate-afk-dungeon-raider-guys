@@ -22,7 +22,7 @@ const stats = ["max_hp", "attack", "defense", "speed", "heal_rate"]
 
 // base route
 app.get('/', (req, res) => {
-    res.send("Dumbass route for bozo idiots")
+    res.send("Welcome to Ultimate AFK Dungeon Raider Guys API!")
 })
 
 app.get('/up', (req, res) => {

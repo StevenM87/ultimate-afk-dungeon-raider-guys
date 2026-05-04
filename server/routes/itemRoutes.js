@@ -6,7 +6,7 @@ const stats = ["max_hp", "attack", "defense", "speed", "heal_rate"]
 const itemRoutes = (app) => {
   app.get('/equips', (req, res) => {
     try {
-      let qs = "SELECT * FROM equips WHERE equip_id != 0"
+      let qs = "SELECT * FROM equips WHERE equip_id != 0 ORDER BY cost, equip_id"
       query(qs).then(data => res.json(data.rows))  
     } catch(err) {
       console.log(err)

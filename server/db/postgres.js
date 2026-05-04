@@ -29,6 +29,11 @@ export const query = async (text, values) => {
     }
 }
 
+/**
+ * Using pooling allowed us to write atomic transactions with multiple queries.
+ * This is useful since a lot of our application routes and our simulation functions
+ * have multiple queries. If a query fails, we can rollback the whole transaction.
+ */
 export const getClient = async () => {
   const client = await pool.connect()
 
