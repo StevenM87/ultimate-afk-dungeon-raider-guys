@@ -25,6 +25,7 @@ app.get('/', (req, res) => {
     res.send("Welcome to Ultimate AFK Dungeon Raider Guys API!")
 })
 
+// up route
 app.get('/up', (req, res) => {
   res.json({status: 'up'})
 })

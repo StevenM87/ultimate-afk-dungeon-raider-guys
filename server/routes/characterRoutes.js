@@ -1,41 +1,60 @@
 import { query } from '../db/postgres.js'
 
 const characterRoutes = (app) => {
+  /**
+   * GET route that gets all characters
+   */
   app.get('/characters', (req, res) => {
     try {
       let qs = "SELECT * FROM characters ORDER BY character_id"
-      query(qs).then(data => res.json(data.rows))  
+      query(qs).then(data => res.status(200).json(data.rows))  
     } catch(err) {
       console.log(err)
+      res.status(500).json({message: `Failed to get characters, server error: ${err}`})
     }
   })
   
+  /**
+   * GET route that gets all battles
+   */
   app.get('/characters/battles', (req, res) => {
     try {
       let qs = "SELECT * FROM battles ORDER BY round, winner_id"
-      query(qs).then(data => res.json(data.rows))  
+      query(qs).then(data => res.status(200).json(data.rows))  
     } catch(err) {
       console.log(err)
+      res.status(500).json({message: `Failed to get battles, server error: ${err}`})
     }
   })
   
-  app.get('/characters/battles/:character_id', (req, res) => {
+  /**
+   * GET route that gets all battles for character with id character_id
+   */
+  app.get('/characters/battles/:character_id', async (req, res) => {
     const cid = req.params.character_id
     try {
       let qs = "SELECT * FROM battles WHERE winner_id = $1 OR loser_id = $1 ORDER BY round"
-      query(qs, [cid]).then(data => res.json(data.rows))  
+      const data = await query(qs, [cid])
+      if(data.rows.length === 0) {
+        return res.status(404).json({message: `No battles recorded for character with id ${cid}`})
+      }
+      res.status(200).json(data.rows)
     } catch(err) {
       console.log(err)
+      res.status(500).json({message: `Failed to get battles for character with id ${cid}, server error: ${err}`})
     }
   })
   
+  /**
+   * GET route that gets all records
+   */
   app.get('/characters/records', async (req, res) => {
     try {
       let qs = "SELECT winner_id, COUNT(*) as wins FROM battles GROUP BY winner_id ORDER BY winner_id"
       const wins = (await query(qs)).rows
     
       if (wins.length === 0) {
-        return res.json([])  // was res.send("No battles logged yet")
+        return res.status(404).json({message: "No battles logged yet"})
       }
       qs = "SELECT loser_id, COUNT(*) as losses FROM battles GROUP BY loser_id ORDER BY loser_id"
       const losses = (await query(qs)).rows
@@ -54,12 +73,16 @@ const characterRoutes = (app) => {
             li++
         }
     }
-      res.json(out)
+      res.status(200).json(out)
     } catch(err) {
       console.log(err)
+      res.status(500).json({message: `Failed to get records, server error: ${err}`})
     }
   })
   
+  /**
+   * GET route that gets all records for character with id character_id
+   */
   app.get('/characters/records/:character_id', async (req, res) => {
     const cid = req.params.character_id
     try {
@@ -67,31 +90,46 @@ const characterRoutes = (app) => {
       const wins = (await query(qs, [cid])).rows[0].wins
       qs = "SELECT COUNT(*) as losses FROM battles WHERE loser_id = $1"
       const losses = (await query(qs, [cid])).rows[0].losses
-      res.json([{character_id: cid, wins: wins, losses: losses}])
+      res.status(200).json([{character_id: cid, wins: wins, losses: losses}])
     } catch(err) {
       console.log(err)
+      res.status(500).json({message: `Failed to get record for character with id ${cid}, server error: ${err}`})
+    }
+  })
+
+  /**
+   * GET route that gets the character with id character_id
+   */
+  app.get('/characters/:character_id', async (req, res) => {
+    const cid = req.params.character_id
+    try {
+      let qs = "SELECT * FROM characters WHERE character_id = $1"
+      const data = await query(qs, [cid])
+      if(data.rows.length === 0) {
+        return res.status(404).json({message: `No character with id ${cid}`})
+      }
+      res.status(200).json(data.rows)
+    } catch(err) {
+      console.log(err)
+      res.status(500).json({message: `Failed to get character with id ${cid}, server error: ${err}`})
     }
   })
   
+  /**
+   * GET route that gets all equips on character with id character_id
+   */
   app.get('/characters/:character_id/equips', async (req, res) => {
     const cid = req.params.character_id
     try {
       const qs = "SELECT * FROM character_equips WHERE character_id = $1 ORDER BY equip_slot"
-      const result = await query(qs, [cid])
-      res.json(result.rows)
+      const data = await query(qs, [cid])
+      if(data.rows.length === 0) {
+        return res.status(404).json({message: `No character with id ${cid}`})
+      }
+      res.status(200).json(data.rows)
     } catch (err) {
       console.log(err)
-      res.status(500).json([])
-    }
-  })
-
-  app.get('/characters/:character_id', (req, res) => {
-    const cid = req.params.character_id
-    try {
-      let qs = "SELECT * FROM characters WHERE character_id = $1"
-      query(qs, [cid]).then(data => res.json(data.rows))  
-    } catch(err) {
-      console.log(err)
+      res.status(500).json({message: `Failed to get equips for character with id ${cid}, server error: ${err}`})
     }
   })
 }
