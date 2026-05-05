@@ -1,50 +1,23 @@
 # CSE264 Final Project: Full Stack
+
 ## Due: Friday, May 2, 2025 at 11:59 PM
+
 ## Add your full name and Lehigh email address to this README!
-Steven McPhillimey slm526@lehigh.edu, Demetri Kostas dek226@lehigh.edu, David Chen dac326@lehigh.edu
+
+Steven McPhillimey `slm526@lehigh.edu`, Demetri Kostas `dek226@lehigh.edu`, David Chen `dac326@lehigh.edu`
 
 ### Project Requirements
+
 Your web application should have/do the following:
 
 Your web application must include the following:
+
 * User Accounts & Roles: Implement different user roles such as user/admin, free/paid, etc.
 * Database: Your application must store and retrieve data from a database of your choice.
 * Interactive UI: Your web app must have an interactive user interface, which can include forms, real-time updates, animations, or other dynamic elements.
 * New Library or Framework: You must use at least one library or framework that was not covered in class.
 * Internal REST API: Your project must have an API layer used to store and retrieve data
 * External REST API: You may include an external REST API (e.g., Reddit API, Spotify API, OpenWeather API, etc.).
-
-### Installation and Running the Project
-
-#### Client
-The client for this project uses React + Vite template which provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-You must have node.js running on your machine. Once you have cloned this project you can run `npm install` to install all the packages for this project. Then running `npm run dev` will run the dev version of this code, which will run this project on localhost:5173 (or at the location specified in the console).
-
-#### Server
-You must have node.js running on your machine. Once you have cloned this project you can run `npm install` to install all the packages for this project. Then running `npm run dev` will run the dev version of this code, which will run this project with nodemon. Nodemon auto-restarts the node server every time you make a change to a file. This is very helpful when you are writing and testing code.
-
-##### .env and Postgres Installation
-
-A Postgres instance may have been provided to you. Your username for the database is your 6 character alphanumeric lehigh id. Your password for the database is your 6 character alphanumeric lehigh id followed by '_lehigh'.
-
-You will need to create a .env from the .env.example You can do this by running this line of code in your terminal 
-
-`cp .env.example .env`
-
-Then store your Database credentials in your .env file.
-
-**Note: Never EVER push private information (like credentials) to a Git Repo. We use .env to store this connection information and ensure that git (using .gitignore) never pushes this private information in the repo. Never ever store real credentials in .env.example or anywhere that is not .env as you may push these changes to your git repo.**
-
-### Grading
-* **Project Functionality** -- **30 points** -- Meets all outlined requirements
-* **Technical Implementation** -- **25 points** -- Clean code, database integration, API Usage
-* **UI/UX & Interactivity** -- **15 points** -- Well-designed, intuitive, and responsive UI
-* **Use of New Tech** -- **10 points** -- Implements a library/framework not covered in class
-* **Project Documentation** -- **10 points** -- Clear README, installation guide, and API setup
-* **Presentation & Demo** -- **10 points** -- Engaging, clear explanation, and live demo
-
-**If code doesn't run/compile you can get no more than a 60. But please write comments and a README to explain what you were trying to do.**
 
 ## 1. Project Overview
 
@@ -70,6 +43,40 @@ Our Team:
 * To fulfill the framework requirement, we will use react-hook-form for advanced input validation and MUI for specialized UI components.
 * The app uses an internal REST API layer written in JavaScript that sits between the client and the database to process web requests and game updates to ensure seamless data flow across the application.
 
+### Full Tech Stack
+
+* Frontend - React (CSS, html)
+* Backend - Javascript (expressjs)
+* Database: Supabase
+* Version control: Github
+* Libraries: react-router, mui, react-hook-form (we will use this for user inputs and validating the inputs)
+* Testing: Postman, Supabase
+
+### Architecture Diagram
+
+![Architecture Diagram](./images/architecture.png)
+
+### Frontend Login
+
+* Login validates against existing backend users data.
+* Only accounts with `role = admin` are allowed to log into the admin portal.
+* Only accounts with `role = user` are allowed to log into the user portal.
+* Session is stored in browser `sessionStorage` and cleared on logout.
+
+#### Currently Supported Admin Actions
+
+* View users (moderation list UI)
+* View bots list
+* Create potions via `POST /potions`
+* Create equips via `POST /equips`
+* View current equips list
+
+#### Currently Supported User Actions
+
+* View character stats, level, gold, equips, and potions
+* Purchase equips and potions from the shop
+* Equip equips and use potions from the inventory
+* View leaderboard
 
 ## 4. Installation & Setup Instructions
 
@@ -80,44 +87,34 @@ Our Team:
 3. Start the client from `client/`:
    * `npm install`
    * `npm run dev`
-4. Open the admin portal at:
+4. API routes can be viewed via browser (GETs only) or postman (any HTTP method) at:
+   * `http://localhost:3000`
+5. Open the admin portal at:
    * `http://localhost:5173/admin.html`
-5. Open the player portal at:
+6. Open the player portal at:
    * `http://localhost:5173/user.html`
 
 ## 5. API Keys & Database Setup
 
-### Frontend
-
-The project has two standalone frontends (user and admin) built with React.
-
-#### Login
-
-* Login validates against existing backend users data.
-* Only accounts with `role = admin` are allowed to log into the admin portal.
-* Only accounts with `role = user` are allowed to log into the user portal.
-* Session is stored in browser `sessionStorage` and cleared on logout.
-
-#### Currently Supported Admin Actions
-
-* View users (moderation list UI).
-* View bots list.
-* Create potions via `POST /potions`.
-* Create equips via `POST /equips`.
-* View current equips list.
-
-#### Currently Supported User Actions
-
-* View character stats, level, gold, equips, and potions.
-* Purchase equips and potions from the shop.
-* Equip equips and use potions from the inventory.
-* View leaderboard.
+.env file with environment variables are included in the email submission of the project (we didn't want to push them to the repo in the README). No other external configurations are needed and there are no external apis in use. The database can be viewed at `https://supabase.com/dashboard/org/kgnzwubvrqzlpcewvukp/team`.
 
 ### Backend
 
 The backend is built with expressjs, and it serves as the point of transfer between the frontends and database, while also running the game battling logic.
 
-#### Tables
+The backend implements a query pooling method using Pool from pg, this allows for multi-query transactions to be excuted atomically, since they can be rolled back in the event of an error. This method is used in the 6 multi-write routes, and in the simulation running on the backend. All other routes use the same single query function we used in class.
+
+The backend also implements a sort of server-to-server async communication via the database. Essentially, when there are rounds to run, multiple servers should not try to both execute this, as it would put the database out of a correct state. Using the updating singleton table allows the servers to check if there is updating occuring at a different server and also indicate to all other servers if this server is updating.
+
+These checks can be seen occuring periodically here:
+
+If no rounds need to be run:
+![Server Running No Updates Needed](./images/server.png)
+
+If some rounds need to be run:
+![Server Running Updates Needed](./images/server2.png)
+
+#### Database Tables
 
 There are 10 tables in the database:
 
@@ -144,13 +141,13 @@ The backend has 31 routes:
 * GET `/users/:user_id` route that gets a user by user_id
 * DELETE `/users/:user_id` route that deletes a user by user_id (cannot delete admins)
 * PUT `/users/:user_id/ban` route that bans a user by user_id (cannot ban admins)
-* POST/PUT `/users/:user_id/buy/:type/:item_id` route that allows a user to buy an item (equip or potion)
+* POST/PUT `/users/:user_id/buy/:type/:item_id` routes that allows a user to buy an item (equip or potion)
 * GET `/users/:user_id/characters` route that gets all characters for a user
 * POST `/users/:user_id/characters` route that creates a character for a user (requires character_name, optional character_type)
 * GET `/users/:user_id/characters/:character_id` route that gets a specific character for a user
 * DELETE `/users/:user_id/characters/:character_id` route that deletes a character for a user (returns equipped items to inventory)
-* POST/PUT `/users/:user_id/characters/:character_id/equip/:slot/:item_id` route that equips an item to a character
-* POST/PUT `/users/:user_id/characters/:character_id/potion/:item_id` route that uses a potion on a character
+* POST/PUT `/users/:user_id/characters/:character_id/equip/:slot/:item_id` routes that equips an item to a character
+* POST/PUT `/users/:user_id/characters/:character_id/potion/:item_id` routes that uses a potion on a character
 * PUT `/users/:user_id/earn` route that adds gold to a user (requires gold in body)
 * GET `/users/:user_id/equips` route that gets all equips owned by a user
 * GET `/users/:user_id/potions` route that gets all potions owned by a user
@@ -178,5 +175,3 @@ The backend has 31 routes:
 ##### Additional Route
 
 * POST `/rounds` route that adds simulation rounds (requires rounds as a positive integer in body)
-
-####
