@@ -108,10 +108,12 @@ The backend also implements a sort of server-to-server async communication via t
 
 These checks can be seen occuring periodically here:
 
-If no rounds need to be run:
+#### If no rounds need to be run
+
 ![Server Running No Updates Needed](./images/server.png)
 
-If some rounds need to be run:
+#### If some rounds need to be run
+
 ![Server Running Updates Needed](./images/server2.png)
 
 #### Database Tables
@@ -175,3 +177,14 @@ The backend has 31 routes:
 ##### Additional Route
 
 * POST `/rounds` route that adds simulation rounds (requires rounds as a positive integer in body)
+
+## 6. Additional Features That We Could Add With More Time
+
+* 'Dungeon Mode' where characters can be set to battle through a dungeon instead of against other players
+* Setting what percentage of hp that your character can battle at (so players can let their characters rest longer and heal up more fully if they want)
+* The database is set to allow a user to have multiple characters, which we use for bots, but it could also be implemented for players
+* 'Challenge Match' where you challenge another player to a battle instead of fighting a random opponent
+* User selected level up perks (extra stats, special abilities, etc.)
+* Guilds, a way for users to make teams that could battle other teams
+* Tournaments between characters
+* Individual character battle logs, similar to the leaderboard, it would be a way to view results
