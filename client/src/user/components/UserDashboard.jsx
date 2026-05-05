@@ -174,7 +174,7 @@ function UserDashboard({ user, onLogout }) {
 
   // Split stat names like "attackdefensespeed" that route returns 
   const types =
-    String(boostType).match(/attack|defense|speed|max_hp/gi) || []
+    String(boostType).match(/attack|defense|speed|max_hp|heal_rate/gi) || []
 
   return amounts
     .map((amount, i) => {
@@ -208,7 +208,8 @@ function UserDashboard({ user, onLogout }) {
                                     ❤ {c.current_hp}/{c.max_hp} &nbsp;·&nbsp;
                                     ⚔ {c.attack} &nbsp;·&nbsp;
                                     🛡 {c.defense} &nbsp;·&nbsp;
-                                    💨 {c.speed}
+                                    💨 {c.speed} &nbsp;·&nbsp;
+                                    🩹 {c.heal_rate}
                                 </span>
                             </div>
                         ))}
