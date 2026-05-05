@@ -12,7 +12,7 @@ import itemRoutes from './routes/itemRoutes.js'
 // create the app
 const app = express()
 // it's nice to set the port number so it's always the same
-app.set('port', process.env.PORT || 3000 );
+app.set('port', 3000);
 // set up some middleware to handle processing body requests
 app.use(express.json())
 // set up some midlleware to handle cors

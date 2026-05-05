@@ -3,8 +3,6 @@
 ## Add your full name and Lehigh email address to this README!
 Steven McPhillimey slm526@lehigh.edu, Demetri Kostas dek226@lehigh.edu, David Chen dac326@lehigh.edu
 
-This repo contains the boilerplate code for a full stack application using Express and React.  If you need a database table, please let your instructor know.
-
 ### Project Requirements
 Your web application should have/do the following:
 
@@ -15,7 +13,6 @@ Your web application must include the following:
 * New Library or Framework: You must use at least one library or framework that was not covered in class.
 * Internal REST API: Your project must have an API layer used to store and retrieve data
 * External REST API: You may include an external REST API (e.g., Reddit API, Spotify API, OpenWeather API, etc.).
-
 
 ### Installation and Running the Project
 
@@ -49,20 +46,48 @@ Then store your Database credentials in your .env file.
 
 **If code doesn't run/compile you can get no more than a 60. But please write comments and a README to explain what you were trying to do.**
 
+## 1. Project Overview
+
+### Project Name
+
+Ultimate AFK Dungeon Raider Guys
+
+## 2. Team Members & Roles
+
+Our Team:
+
+* David Chen: Frontend (Admin)  
+* Demetri Kostas: Frontend (User)
+* Steven McPhillimey: Database, Backend/Application Logic
+
+## 3. Application Features
+
+* The Ultimate AFK Dungeon Raider Guys project satisfies all project requirements by implementing a multi-role system that distinguishes between Players, who engage in PVP battles, and Admins, who manage game content and moderate users.
+* The application utilizes Supabase as its core database * to store and retrieve game states.
+* The frontend is built using React to provide an interactive UI featuring dynamic character customization and live leaderboards.
+* To fulfill the framework requirement, we will use react-hook-form for advanced input validation and MUI for specialized UI components.
+* The app uses an internal REST API layer written in JavaScript that sits between the client and the database to process web requests and game updates to ensure seamless data flow across the application.
+
+
+## 4. Installation & Setup Instructions
+
+1. Clone repo with `git clone https://github.com/StevenM87/ultimate-afk-dungeon-raider-guys.git`
+2. Start the server from `server/`:
+   * `npm install`
+   * `npm run dev`
+3. Start the client from `client/`:
+   * `npm install`
+   * `npm run dev`
+4. Open the admin portal at:
+   * `http://localhost:5173/admin.html`
+5. Open the player portal at:
+   * `http://localhost:5173/user.html`
+
+## 5. API Keys & Database Setup
+
 ### Admin Portal Frontend
 
 The project now includes a standalone admin frontend built with React.
-
-#### Run Instructions
-
-1. Start the server from `server/`:
-   - `npm install`
-   - `npm run dev`
-2. Start the client from `client/`:
-   - `npm install`
-   - `npm run dev`
-3. Open the admin portal at:
-   - `http://localhost:5173/admin.html`
 
 #### Admin Login
 
