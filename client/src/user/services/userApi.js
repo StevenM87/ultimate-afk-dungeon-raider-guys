@@ -89,6 +89,12 @@ export async function equipItem(userId, characterId, slot, itemId) {
   })
 }
 
+export async function usePotion(userId, characterId, itemId) {
+  return request(`/users/${userId}/characters/${characterId}/potion/${itemId}`, {
+    method: 'POST',
+  })
+}
+
 export async function unequipItem(userId, characterId, slot) {
   return request(`/users/${userId}/characters/${characterId}/equip/${slot}/0`, {
     method: 'POST',

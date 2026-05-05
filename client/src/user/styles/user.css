@@ -706,7 +706,7 @@ body {
   color: var(--text-muted, #aaa);
   font-size: 0.8rem;
 }
-.equip-btn {
+.equip-btn, .use-btn {
   margin-left: 6px;
   padding: 2px 8px;
   font-size: 0.75rem;

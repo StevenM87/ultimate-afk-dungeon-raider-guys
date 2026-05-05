@@ -12,6 +12,7 @@ import {
   fetchCharacterEquips,
   equipItem,
   unequipItem,
+  usePotion,
 } from '../services/userApi'
 
 const TABS = ['leaderboard', 'shop', 'inventory']
@@ -32,6 +33,7 @@ function UserDashboard({ user, onLogout }) {
   const [records, setRecords]   = useState([])
   const [charEquips, setCharEquips] = useState({}) 
   const [equipping, setEquipping] = useState(null)
+  const [usingPotion, setUsingPotion] = useState(null)
 
   const currentUser =
   allUsers.find((u) => Number(u.user_id) === Number(user.user_id)) || user
@@ -123,6 +125,21 @@ function UserDashboard({ user, onLogout }) {
       setError(err.message)
     } finally {
       setBuyingId(null)
+    }
+  }
+
+  const handlePotion = async (characterId, itemId, itemName) => {
+    setUsingPotion(`${characterId}-${itemId}`)
+    setActionMessage('')
+    setError('')
+    try {
+      await usePotion(user.user_id, characterId, itemId)
+      setActionMessage(`Used ${itemName}!`)
+      await loadAll()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUsingPotion(null)
     }
   }
 
@@ -433,6 +450,17 @@ function UserDashboard({ user, onLogout }) {
                         </span>
                     )}
                     <span className="inv-count">×{up.count}</span>
+                    {details && characters.map((c) => {
+                      return <button
+                        key={`${c.character_id}`}
+                        type="button"
+                        className="use-btn"
+                        disabled={!!usingPotion}
+                        onClick={() => handlePotion(c.character_id, up.potion_id, details.potion_name)}
+                      >
+                        {usingPotion === `${c.character_id}-${up.potion_id}` ? '...' : `Use → ${c.character_name}`}
+                      </button>
+                    })}
                     </div>
                 )
                 })}

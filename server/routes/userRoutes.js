@@ -466,13 +466,13 @@ const userRoutes = (app) => {
       }
       let heal = heal_raw
       heal += Math.round(max*heal_percent*(0.8+Math.random()*0.4))
-      heal = heal + current < max ? heal : current - max
+      heal = heal + current < max ? heal : max - current
       client.query("BEGIN")
       open = true
       qs = "UPDATE user_potions SET count = count - 1 WHERE user_id = $1 AND potion_id = $2"
       await client.query(qs, [id, iid])
       qs = "UPDATE characters SET current_hp = current_hp + $2 WHERE character_id = $1"
-      const data = await client.query(qs, [heal])
+      const data = await client.query(qs, [cid, heal])
       await client.query("COMMIT")
       res.status(200).json(data.rows)
     } catch(err) {
@@ -519,9 +519,6 @@ const userRoutes = (app) => {
     try {
       let qs = "SELECT * FROM user_equips WHERE user_id = $1 AND count > 0"
       const data = await query(qs, [id])
-      if(data.rows.length === 0) {
-        return res.status(404).json({ message: `No equips found for user with user_id ${id}` })
-      }
       res.status(200).json(data.rows) 
     } catch(err) {
       console.log(err)
@@ -537,9 +534,6 @@ const userRoutes = (app) => {
     try {
       let qs = "SELECT * FROM user_potions WHERE user_id = $1 AND count > 0"
       const data = await query(qs, [id])
-      if(data.rows.length === 0) {
-        return res.status(404).json({ message: `No potions found for user with user_id ${id}` })
-      }
       res.status(200).json(data.rows) 
     } catch(err) {
       console.log(err)
