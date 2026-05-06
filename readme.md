@@ -78,6 +78,8 @@ Our Team:
 * Equip equips and use potions from the inventory
 * View leaderboard
 
+IMPORTANT: Unfortunately we cannot add characters from the frontend, however postman can be used with the POST `/users/:user_id/characters` route (requires character_name, optional character_type)
+
 ## 4. Installation & Setup Instructions
 
 1. Clone repo with `git clone https://github.com/StevenM87/ultimate-afk-dungeon-raider-guys.git`
@@ -180,6 +182,7 @@ The backend has 31 routes:
 
 ## 6. Additional Features That We Could Add With More Time
 
+* Adding characters from frontend
 * 'Dungeon Mode' where characters can be set to battle through a dungeon instead of against other players
 * Setting what percentage of hp that your character can battle at (so players can let their characters rest longer and heal up more fully if they want)
 * The database is set to allow a user to have multiple characters, which we use for bots, but it could also be implemented for players
