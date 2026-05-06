@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import {
   banUser,
   createEquip,
@@ -13,21 +14,6 @@ const tabOptions = ['users', 'items', 'bots']
 const statOptions = ['max_hp', 'attack', 'defense', 'speed', 'heal_rate']
 const equipTypeOptions = ['weapon', 'armor', 'accessory']
 
-const initialPotionForm = {
-  potion_name: '',
-  cost: '',
-  heal_raw: '',
-  heal_percent: '',
-}
-
-const initialEquipForm = {
-  equip_name: '',
-  equip_type: 'weapon',
-  cost: '',
-  boost_type: '',
-  boost_amount: '',
-}
-
 function AdminDashboard({ adminUser, onLogout }) {
   const [activeTab, setActiveTab] = useState('users')
   const [users, setUsers] = useState([])
@@ -35,11 +21,21 @@ function AdminDashboard({ adminUser, onLogout }) {
   const [equips, setEquips] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [potionForm, setPotionForm] = useState(initialPotionForm)
-  const [equipForm, setEquipForm] = useState(initialEquipForm)
   const [actionMessage, setActionMessage] = useState('')
   const [pendingUserActionId, setPendingUserActionId] = useState(null)
   const [userSearch, setUserSearch] = useState('')
+
+  const {
+    register: registerPotion,
+    handleSubmit: handlePotionSubmitForm,
+    reset: resetPotionForm,
+  } = useForm()
+
+  const {
+    register: registerEquip,
+    handleSubmit: handleEquipSubmitForm,
+    reset: resetEquipForm,
+  } = useForm()
 
   const moderatedUsers = useMemo(() => {
     return users.filter((user) => {
@@ -84,48 +80,47 @@ function AdminDashboard({ adminUser, onLogout }) {
     refreshData()
   }, [])
 
-  const handlePotionSubmit = async (event) => {
-    event.preventDefault()
+  const handlePotionSubmit = async (data) => {
     setActionMessage('')
     setError('')
 
     try {
       await createPotion({
-        potion_name: potionForm.potion_name.trim(),
-        cost: Number(potionForm.cost),
-        heal_raw: Number(potionForm.heal_raw),
-        heal_percent: Number(potionForm.heal_percent),
+        potion_name: data.potion_name.trim(),
+        cost: Number(data.cost),
+        heal_raw: Number(data.heal_raw),
+        heal_percent: Number(data.heal_percent),
       })
-      setPotionForm(initialPotionForm)
+      resetPotionForm()
       setActionMessage('Potion created successfully.')
     } catch (submitError) {
       setError(submitError.message)
     }
   }
 
-  const handleEquipSubmit = async (event) => {
-    event.preventDefault()
+  const handleEquipSubmit = async (data) => {
     setActionMessage('')
     setError('')
 
-    const boostType = equipForm.boost_type
+    const boostType = data.boost_type
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean)
-    const boostAmount = equipForm.boost_amount
+
+    const boostAmount = data.boost_amount
       .split(',')
       .map((value) => Number(value.trim()))
       .filter((value) => !Number.isNaN(value))
 
     try {
       await createEquip({
-        equip_name: equipForm.equip_name.trim(),
-        equip_type: equipForm.equip_type,
+        equip_name: data.equip_name.trim(),
+        equip_type: data.equip_type,
         boost_type: boostType,
         boost_amount: boostAmount,
-        cost: Number(equipForm.cost),
+        cost: Number(data.cost),
       })
-      setEquipForm(initialEquipForm)
+      resetEquipForm()
       setActionMessage('Equipment item created successfully.')
       const equipItems = await fetchEquips()
       setEquips(equipItems)
@@ -259,45 +254,16 @@ function AdminDashboard({ adminUser, onLogout }) {
         <section className="admin-two-column">
           <article>
             <h2>Add Potion</h2>
-            <form className="admin-form" onSubmit={handlePotionSubmit}>
+            <form className="admin-form" onSubmit={handlePotionSubmitForm(handlePotionSubmit)}>
               <label htmlFor="potion-name">Potion Name</label>
-              <input
-                id="potion-name"
-                type="text"
-                value={potionForm.potion_name}
-                onChange={(event) =>
-                  setPotionForm((current) => ({
-                    ...current,
-                    potion_name: event.target.value,
-                  }))
-                }
-                required
-              />
+              <input id="potion-name" type="text" {...registerPotion('potion_name', { required: true })} />
+
               <label htmlFor="potion-cost">Cost</label>
-              <input
-                id="potion-cost"
-                type="number"
-                min="1"
-                value={potionForm.cost}
-                onChange={(event) =>
-                  setPotionForm((current) => ({ ...current, cost: event.target.value }))
-                }
-                required
-              />
+              <input id="potion-cost" type="number" min="1" {...registerPotion('cost', { required: true })} />
+
               <label htmlFor="potion-heal-raw">Heal Raw</label>
-              <input
-                id="potion-heal-raw"
-                type="number"
-                min="1"
-                value={potionForm.heal_raw}
-                onChange={(event) =>
-                  setPotionForm((current) => ({
-                    ...current,
-                    heal_raw: event.target.value,
-                  }))
-                }
-                required
-              />
+              <input id="potion-heal-raw" type="number" min="1" {...registerPotion('heal_raw', { required: true })} />
+
               <label htmlFor="potion-heal-percent">Heal Percent (0 to 1)</label>
               <input
                 id="potion-heal-percent"
@@ -305,63 +271,31 @@ function AdminDashboard({ adminUser, onLogout }) {
                 min="0"
                 max="1"
                 step="0.01"
-                value={potionForm.heal_percent}
-                onChange={(event) =>
-                  setPotionForm((current) => ({
-                    ...current,
-                    heal_percent: event.target.value,
-                  }))
-                }
-                required
+                {...registerPotion('heal_percent', { required: true })}
               />
+
               <button type="submit">Create Potion</button>
             </form>
           </article>
 
           <article>
             <h2>Add Equipment</h2>
-            <form className="admin-form" onSubmit={handleEquipSubmit}>
+            <form className="admin-form" onSubmit={handleEquipSubmitForm(handleEquipSubmit)}>
               <label htmlFor="equip-name">Equip Name</label>
-              <input
-                id="equip-name"
-                type="text"
-                value={equipForm.equip_name}
-                onChange={(event) =>
-                  setEquipForm((current) => ({
-                    ...current,
-                    equip_name: event.target.value,
-                  }))
-                }
-                required
-              />
+              <input id="equip-name" type="text" {...registerEquip('equip_name', { required: true })} />
+
               <label htmlFor="equip-type">Equip Type</label>
-              <select
-                id="equip-type"
-                value={equipForm.equip_type}
-                onChange={(event) =>
-                  setEquipForm((current) => ({
-                    ...current,
-                    equip_type: event.target.value,
-                  }))
-                }
-              >
+              <select id="equip-type" {...registerEquip('equip_type')}>
                 {equipTypeOptions.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>
                 ))}
               </select>
+
               <label htmlFor="equip-cost">Cost</label>
-              <input
-                id="equip-cost"
-                type="number"
-                min="1"
-                value={equipForm.cost}
-                onChange={(event) =>
-                  setEquipForm((current) => ({ ...current, cost: event.target.value }))
-                }
-                required
-              />
+              <input id="equip-cost" type="number" min="1" {...registerEquip('cost', { required: true })} />
+
               <label htmlFor="equip-boost-type">
                 Boost Type(s), comma-separated
               </label>
@@ -369,15 +303,9 @@ function AdminDashboard({ adminUser, onLogout }) {
                 id="equip-boost-type"
                 type="text"
                 placeholder={statOptions.join(', ')}
-                value={equipForm.boost_type}
-                onChange={(event) =>
-                  setEquipForm((current) => ({
-                    ...current,
-                    boost_type: event.target.value,
-                  }))
-                }
-                required
+                {...registerEquip('boost_type', { required: true })}
               />
+
               <label htmlFor="equip-boost-amount">
                 Boost Amount(s), comma-separated
               </label>
@@ -385,15 +313,9 @@ function AdminDashboard({ adminUser, onLogout }) {
                 id="equip-boost-amount"
                 type="text"
                 placeholder="10, 5"
-                value={equipForm.boost_amount}
-                onChange={(event) =>
-                  setEquipForm((current) => ({
-                    ...current,
-                    boost_amount: event.target.value,
-                  }))
-                }
-                required
+                {...registerEquip('boost_amount', { required: true })}
               />
+
               <button type="submit">Create Equipment</button>
             </form>
           </article>

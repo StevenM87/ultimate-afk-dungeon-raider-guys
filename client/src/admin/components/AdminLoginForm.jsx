@@ -1,19 +1,26 @@
 import { useState } from 'react'
 import { authenticateAdmin } from '../services/adminApi'
+import { useForm } from 'react-hook-form'
 
 function AdminLoginForm({ onLoginSuccess }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm()
+
+  const onSubmit = async (data) => {
     setError('')
     setIsSubmitting(true)
 
     try {
-      const admin = await authenticateAdmin(username.trim(), password)
+      const admin = await authenticateAdmin(
+        data.username.trim(),
+        data.password
+      )
       onLoginSuccess(admin)
     } catch (submitError) {
       setError(submitError.message)
@@ -28,28 +35,31 @@ function AdminLoginForm({ onLoginSuccess }) {
       <p className="admin-subtle-text">
         Sign in with an account that has the <code>admin</code> role.
       </p>
-      <form className="admin-form" onSubmit={handleSubmit}>
+
+      <form className="admin-form" onSubmit={handleSubmit(onSubmit)}>
         <label htmlFor="admin-username">Username</label>
         <input
           id="admin-username"
           type="text"
           autoComplete="username"
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          required
+          {...register('username', { required: 'Username is required' })}
         />
+        {errors.username && (
+          <p className="admin-error">{errors.username.message}</p>
+        )}
 
         <label htmlFor="admin-password">Password</label>
         <input
           id="admin-password"
           type="password"
           autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
+          {...register('password', { required: 'Password is required' })}
         />
+        {errors.password && (
+          <p className="admin-error">{errors.password.message}</p>
+        )}
 
-        {error ? <p className="admin-error">{error}</p> : null}
+        {error && <p className="admin-error">{error}</p>}
 
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Signing in...' : 'Sign In'}
